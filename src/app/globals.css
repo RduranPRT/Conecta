@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --fondo: 248 250 252;
+    --superficie: 255 255 255;
+    --superficie-2: 241 245 249;
+    --borde: 226 232 240;
+    --texto: 15 23 42;
+    --tenue: 100 116 139;
+    --marca: 15 118 110;
+    --marca-suave: 204 251 241;
+    --marca-fuerte: 17 94 89;
+    --acento: 194 65 12;
+    --exito: 21 128 61;
+    --alerta: 180 83 9;
+    --peligro: 190 18 60;
+    --fuente-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: 8 12 20;
+      --superficie: 17 24 39;
+      --superficie-2: 24 33 51;
+      --borde: 40 51 69;
+      --texto: 241 245 249;
+      --tenue: 148 163 184;
+      --marca: 45 212 191;
+      --marca-suave: 19 78 74;
+      --marca-fuerte: 153 246 228;
+      --acento: 251 146 60;
+      --exito: 74 222 128;
+      --alerta: 251 191 36;
+      --peligro: 251 113 133;
+      color-scheme: dark;
+    }
+  }
+
+  * {
+    border-color: rgb(var(--borde));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: rgb(var(--fondo));
+    color: rgb(var(--texto));
+    font-family: var(--fuente-sans);
+    font-feature-settings: "cv02", "cv03", "cv04";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+
+  ::selection {
+    background: rgb(var(--marca) / 0.2);
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--marca));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .contenedor {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+
+  .tarjeta {
+    @apply rounded-2xl border border-borde bg-superficie shadow-tarjeta;
+  }
+
+  .campo {
+    @apply w-full rounded-xl border border-borde bg-superficie px-3.5 py-2.5 text-sm text-texto
+      placeholder:text-tenue focus:border-marca focus:outline-none focus:ring-2 focus:ring-marca/25;
+  }
+
+  .etiqueta {
+    @apply mb-1.5 block text-sm font-medium text-texto;
+  }
+
+  .ayuda {
+    @apply mt-1 text-xs text-tenue;
+  }
+
+  .titulo-seccion {
+    @apply text-xs font-semibold uppercase tracking-wider text-tenue;
+  }
+}
+
+/* Leaflet: el mapa hereda la superficie y los bordes de la aplicación. */
+.leaflet-container {
+  background: rgb(var(--superficie-2));
+  font-family: var(--fuente-sans);
+  z-index: 0;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: rgb(var(--superficie));
+  color: rgb(var(--texto));
+  border-radius: 0.875rem;
+  box-shadow: 0 12px 40px -12px rgb(15 23 42 / 0.35);
+}
+
+.leaflet-popup-content {
+  margin: 0.875rem 1rem;
+  font-size: 0.875rem;
+}
+
+.leaflet-bar a,
+.leaflet-control-attribution {
+  background: rgb(var(--superficie));
+  color: rgb(var(--tenue));
+}
+
+.marcador-conecta {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px 999px 999px 4px;
+  transform: rotate(-45deg);
+  border: 2px solid rgb(var(--superficie));
+  box-shadow: 0 6px 16px -6px rgb(15 23 42 / 0.5);
+}
+
+.marcador-conecta span {
+  transform: rotate(45deg);
+  font-size: 14px;
+  line-height: 1;
+}
