@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Aviso, Boton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export type OpcionComuna = { id: number; nombre: string; regionNombre: string; activa: boolean };
@@ -58,11 +59,35 @@ export function CamposFicha({
     categorias?: number[];
     correoPublico?: string | null;
     sitioWeb?: string | null;
+    lat?: number | null;
+    lng?: number | null;
   };
   }) {
   const [roles, setRoles] = useState<string[]>(inicial?.roles ?? ["persona"]);
   const [cats, setCats] = useState<number[]>(inicial?.categorias ?? []);
+  const [ubicacion, setUbicacion] = useState<{ lat: number; lng: number } | null>(
+    inicial?.lat != null && inicial?.lng != null ? { lat: inicial.lat, lng: inicial.lng } : null,
+  );
+  const [estadoUbicacion, setEstadoUbicacion] = useState<"inicial" | "buscando" | "error">(
+    "inicial",
+  );
   const ofrece = roles.some((r) => r !== "persona");
+
+  function usarUbicacionActual() {
+    if (!("geolocation" in navigator)) {
+      setEstadoUbicacion("error");
+      return;
+    }
+    setEstadoUbicacion("buscando");
+    navigator.geolocation.getCurrentPosition(
+      (posicion) => {
+        setUbicacion({ lat: posicion.coords.latitude, lng: posicion.coords.longitude });
+        setEstadoUbicacion("inicial");
+      },
+      () => setEstadoUbicacion("error"),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
 
   function alternar<T>(lista: T[], valor: T, set: (v: T[]) => void) {
     set(lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]);
@@ -178,6 +203,34 @@ export function CamposFicha({
             placeholder="Av. Principal 1234"
           />
         </div>
+      </div>
+
+      <div>
+        <input type="hidden" name="lat" value={ubicacion?.lat ?? ""} />
+        <input type="hidden" name="lng" value={ubicacion?.lng ?? ""} />
+        <Boton
+          type="button"
+          variante="secundario"
+          onClick={usarUbicacionActual}
+          disabled={estadoUbicacion === "buscando"}
+        >
+          {estadoUbicacion === "buscando" ? "Obteniendo ubicación…" : "📍 Usar mi ubicación actual"}
+        </Boton>
+        <p className="ayuda">
+          Fija tu punto exacto en el mapa (no solo tu comuna) para que te encuentren más cerca.
+          Si no la usas, partimos del centro de tu comuna.
+        </p>
+        {ubicacion ? (
+          <p className="ayuda mt-1 text-marca">
+            Ubicación capturada: {ubicacion.lat.toFixed(5)}, {ubicacion.lng.toFixed(5)}
+          </p>
+        ) : null}
+        {estadoUbicacion === "error" ? (
+          <Aviso tono="alerta">
+            No pudimos acceder a tu ubicación. Revisa el permiso del navegador o deja que se use
+            el centro de tu comuna.
+          </Aviso>
+        ) : null}
       </div>
 
       {ofrece ? (

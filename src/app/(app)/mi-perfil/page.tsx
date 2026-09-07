@@ -60,6 +60,8 @@ export default async function PaginaMiPerfil() {
             categorias: ficha.categorias.map((c) => c.id),
             correoPublico: ficha.correoPublico,
             sitioWeb: ficha.sitioWeb,
+            lat: ficha.lat,
+            lng: ficha.lng,
           }}
           coberturaInicial={ficha.cobertura.map((c) => c.id)}
         />

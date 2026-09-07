@@ -127,6 +127,8 @@ export async function accionCrearPerfil(
       direccion: texto(formData, "direccion") || null,
       radioKm: numero(formData, "radioKm"),
       categoriaIds,
+      lat: numero(formData, "lat"),
+      lng: numero(formData, "lng"),
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo crear el perfil." };
@@ -162,6 +164,8 @@ export async function accionActualizarPerfil(
       identificadorFiscal: texto(formData, "rut") || null,
       comunaId: numero(formData, "comunaId"),
       radioKm: numero(formData, "radioKm"),
+      lat: numero(formData, "lat"),
+      lng: numero(formData, "lng"),
     });
     if (roles.length) await fijarRoles(perfil.id, roles);
     await fijarCategorias(perfil.id, categoriaIds);

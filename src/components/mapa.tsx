@@ -29,11 +29,14 @@ const ESTILO_ROL: Record<string, { emoji: string; color: string }> = {
 export function Mapa({
   puntos,
   centro,
+  miUbicacion,
   zoom = 13,
   alto = "70vh",
 }: {
   puntos: PuntoMapa[];
   centro: { lat: number; lng: number };
+  /** Posición real del visitante (geolocalización), si la compartió. */
+  miUbicacion?: { lat: number; lng: number } | null;
   zoom?: number;
   alto?: string;
 }) {
@@ -67,6 +70,22 @@ export function Mapa({
       }).addTo(mapa);
 
       const grupo: [number, number][] = [];
+
+      if (miUbicacion) {
+        const iconoUbicacion = L.divIcon({
+          className: "",
+          html: '<div class="marcador-mi-ubicacion"><span></span></div>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        });
+        L.marker([miUbicacion.lat, miUbicacion.lng], {
+          icon: iconoUbicacion,
+          zIndexOffset: 1000,
+        })
+          .addTo(mapa)
+          .bindPopup("Estás aquí");
+        grupo.push([miUbicacion.lat, miUbicacion.lng]);
+      }
 
       for (const punto of puntos) {
         const estilo = ESTILO_ROL[punto.rol] ?? ESTILO_ROL.persona;
@@ -115,7 +134,7 @@ export function Mapa({
         mapaRef.current = null;
       }
     };
-  }, [puntos, centro.lat, centro.lng, zoom]);
+  }, [puntos, centro.lat, centro.lng, zoom, miUbicacion?.lat, miUbicacion?.lng]);
 
   return (
     <div

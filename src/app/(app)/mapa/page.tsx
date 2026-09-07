@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 
+import { GeolocalizarMapa } from "@/components/geolocalizar-mapa";
 import { Mapa, type PuntoMapa } from "@/components/mapa";
 import { TarjetaActor } from "@/components/tarjeta-actor";
 import { Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { db } from "@/db";
 import { comunas } from "@/db/schema";
 import { buscarActores } from "@/lib/casos/actores";
-import { categoriasDisponibles, comunasActivas } from "@/lib/casos/perfil";
+import { categoriasDisponibles, comunaMasCercana, comunasActivas } from "@/lib/casos/perfil";
 import { formatearDistancia } from "@/lib/geo";
 import { intencionVacia } from "@/lib/ia/tipos";
 import { obtenerPerfil } from "@/lib/sesion";
@@ -28,9 +29,9 @@ const FILTROS_ROL: { valor: RolActor | "todos"; etiqueta: string; emoji: string 
 export default async function PaginaMapa({
   searchParams,
 }: {
-  searchParams: Promise<{ rol?: string; comuna?: string; categoria?: string }>;
+  searchParams: Promise<{ rol?: string; comuna?: string; categoria?: string; lat?: string; lng?: string }>;
 }) {
-  const { rol = "todos", comuna, categoria } = await searchParams;
+  const { rol = "todos", comuna, categoria, lat: latParam, lng: lngParam } = await searchParams;
   const perfil = await obtenerPerfil();
 
   const [listaComunas, listaCategorias] = await Promise.all([
@@ -38,8 +39,20 @@ export default async function PaginaMapa({
     categoriasDisponibles(),
   ]);
 
+  const geoLat = latParam ? Number(latParam) : null;
+  const geoLng = lngParam ? Number(lngParam) : null;
+  const miUbicacion =
+    geoLat !== null && geoLng !== null && !Number.isNaN(geoLat) && !Number.isNaN(geoLng)
+      ? { lat: geoLat, lng: geoLng }
+      : null;
+
+  // La geolocalización solo decide la comuna cuando el visitante no la eligió
+  // a mano: si viene "comuna" en la URL, esa elección manda.
+  const comunaGeolocalizada = miUbicacion && !comuna ? await comunaMasCercana(miUbicacion.lat, miUbicacion.lng) : null;
+
   const comunaId =
     Number(comuna) ||
+    comunaGeolocalizada?.id ||
     perfil?.comunaId ||
     listaComunas.find((c) => c.activa)?.id ||
     listaComunas[0]?.id ||
@@ -51,18 +64,24 @@ export default async function PaginaMapa({
     categoriaId: Number(categoria) || null,
   };
 
+  const desde = miUbicacion ?? (perfil?.lat && perfil?.lng ? { lat: perfil.lat, lng: perfil.lng } : null);
+
   const actores = await buscarActores(intencion, {
-    desde: perfil?.lat && perfil?.lng ? { lat: perfil.lat, lng: perfil.lng } : null,
+    desde,
     roles: rol !== "todos" ? [rol as RolActor] : ["prestador", "negocio", "proveedor", "productor"],
     limite: 120,
     soloConUbicacion: true,
   });
 
-  const centro = comunaId
-    ? await db.query.comunas
-        .findFirst({ where: eq(comunas.id, comunaId) })
-        .then((c) => (c ? { lat: c.lat, lng: c.lng } : { lat: -33.45, lng: -70.66 }))
-    : { lat: -33.45, lng: -70.66 };
+  let centro: { lat: number; lng: number } = { lat: -33.45, lng: -70.66 };
+  if (miUbicacion) {
+    centro = miUbicacion;
+  } else if (comunaId) {
+    const comunaCentro = await db.query.comunas.findFirst({ where: eq(comunas.id, comunaId) });
+    if (comunaCentro) centro = { lat: comunaCentro.lat, lng: comunaCentro.lng };
+  }
+
+  const activarGeolocalizacion = !comuna && !miUbicacion;
 
   const puntos: PuntoMapa[] = actores.map((a) => ({
     id: a.id,
@@ -80,7 +99,14 @@ export default async function PaginaMapa({
 
   const enlace = (cambios: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const base = { rol, comuna: comuna ?? String(comunaId ?? ""), categoria, ...cambios };
+    const base = {
+      rol,
+      comuna: comuna ?? String(comunaId ?? ""),
+      categoria,
+      lat: latParam,
+      lng: lngParam,
+      ...cambios,
+    };
     for (const [clave, valor] of Object.entries(base)) {
       if (valor && valor !== "todos") p.set(clave, valor);
     }
@@ -91,8 +117,10 @@ export default async function PaginaMapa({
     <div className="space-y-5">
       <Encabezado
         titulo="Mapa"
-        bajada="Explora tu comuna sin buscar nada. Cada tipo de actor tiene su propio icono; al tocar un punto ves la ficha resumida."
+        bajada="Al entrar te ubicamos donde estás y te mostramos a los proveedores más cercanos. Cada tipo de actor tiene su propio icono; al tocar un punto ves la ficha resumida."
       />
+
+      <GeolocalizarMapa activo={activarGeolocalizacion} />
 
       <div className="flex flex-wrap items-center gap-2">
         {FILTROS_ROL.map((f) => (
@@ -146,8 +174,8 @@ export default async function PaginaMapa({
         </form>
       </div>
 
-      {puntos.length ? (
-        <Mapa puntos={puntos} centro={centro} alto="62vh" />
+      {puntos.length || miUbicacion ? (
+        <Mapa puntos={puntos} centro={centro} miUbicacion={miUbicacion} alto="62vh" />
       ) : (
         <Tarjeta className="grid place-items-center px-6 py-16 text-center">
           <p className="text-sm text-tenue">
@@ -155,6 +183,11 @@ export default async function PaginaMapa({
           </p>
         </Tarjeta>
       )}
+      {miUbicacion && !puntos.length ? (
+        <p className="text-center text-xs text-tenue">
+          Te ubicamos, pero todavía no hay actores con ubicación cerca de ti en esta selección.
+        </p>
+      ) : null}
 
       <section>
         <div className="mb-3 flex items-center justify-between">

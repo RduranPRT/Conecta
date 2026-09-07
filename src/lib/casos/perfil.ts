@@ -15,6 +15,7 @@ import {
   verificaciones,
   type RolActor,
 } from "@/db/schema";
+import { distanciaKm } from "@/lib/geo";
 import { slugificar } from "@/lib/utils";
 
 import { registrarEvento } from "./eventos";
@@ -53,6 +54,9 @@ export async function crearPerfil(entrada: {
   direccion?: string | null;
   categoriaIds?: number[];
   radioKm?: number | null;
+  /** Coordenadas exactas tomadas con la geolocalización del navegador. */
+  lat?: number | null;
+  lng?: number | null;
 }) {
   const comuna = entrada.comunaId
     ? await db.query.comunas.findFirst({ where: eq(comunas.id, entrada.comunaId) })
@@ -72,10 +76,10 @@ export async function crearPerfil(entrada: {
         telefono: entrada.telefono?.trim() || null,
         direccion: entrada.direccion?.trim() || null,
         comunaId: entrada.comunaId ?? null,
-        // Sin geocodificación en el MVP: se parte del centro de la comuna y
-        // el usuario puede ajustar el punto después.
-        lat: comuna?.lat ?? null,
-        lng: comuna?.lng ?? null,
+        // Si el usuario compartió su ubicación real, esa manda. Si no, se
+        // parte del centro de la comuna y puede ajustarse después.
+        lat: entrada.lat ?? comuna?.lat ?? null,
+        lng: entrada.lng ?? comuna?.lng ?? null,
         radioKm: entrada.radioKm ?? null,
       })
       .returning();
@@ -132,11 +136,19 @@ export async function actualizarPerfil(
     comunaId: number | null;
     radioKm: number | null;
     identificadorFiscal: string | null;
+    /** Coordenadas exactas tomadas con la geolocalización del navegador. */
+    lat: number | null;
+    lng: number | null;
   }>,
 ) {
-  const valores: Record<string, unknown> = { ...cambios, actualizadoEn: new Date() };
+  const { lat, lng, ...resto } = cambios;
+  const valores: Record<string, unknown> = { ...resto, actualizadoEn: new Date() };
 
-  if (cambios.comunaId) {
+  if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+    // La ubicación real que trae el usuario manda sobre el centroide de la comuna.
+    valores.lat = lat;
+    valores.lng = lng;
+  } else if (cambios.comunaId) {
     const comuna = await db.query.comunas.findFirst({ where: eq(comunas.id, cambios.comunaId) });
     if (comuna) {
       valores.lat = comuna.lat;
@@ -306,6 +318,32 @@ export async function comunasActivas() {
     .from(comunas)
     .innerJoin(regiones, eq(regiones.id, comunas.regionId))
     .orderBy(desc(comunas.activa), comunas.nombre);
+}
+
+/**
+ * Dada una coordenada (típicamente la geolocalización del navegador), busca
+ * la comuna administrativa más cercana. Sirve para que el mapa arranque en
+ * el territorio real del usuario sin que este tenga que elegirlo a mano.
+ */
+export async function comunaMasCercana(lat: number, lng: number) {
+  const todas = await db
+    .select({ id: comunas.id, nombre: comunas.nombre, lat: comunas.lat, lng: comunas.lng })
+    .from(comunas);
+
+  if (!todas.length) return null;
+
+  let mejor = todas[0];
+  let mejorDistancia = distanciaKm({ lat, lng }, { lat: mejor.lat, lng: mejor.lng });
+
+  for (const candidata of todas.slice(1)) {
+    const distancia = distanciaKm({ lat, lng }, { lat: candidata.lat, lng: candidata.lng });
+    if (distancia < mejorDistancia) {
+      mejor = candidata;
+      mejorDistancia = distancia;
+    }
+  }
+
+  return { ...mejor, distanciaKm: mejorDistancia };
 }
 
 export async function categoriasPorId(ids: number[]) {
