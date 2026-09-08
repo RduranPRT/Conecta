@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, Bot, Sparkles } from "lucide-react";
+import { ArrowRight, Bot, Handshake, PackageSearch, Sparkles, Store, Wrench } from "lucide-react";
 
 import { BuscadorRapido } from "@/components/buscador-rapido";
 import { TarjetaActor } from "@/components/tarjeta-actor";
@@ -73,6 +73,40 @@ export default async function PaginaInicio() {
               <BuscadorRapido tamano="lg" />
             </Suspense>
           </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <BotonEnlace href="/publicar?tipo=necesidad" tamano="md">
+              Necesito algo
+            </BotonEnlace>
+            <BotonEnlace href="/publicar?tipo=oferta" variante="secundario" tamano="md">
+              Ofrezco algo
+            </BotonEnlace>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              { href: "/descubrir?tipo=producto", etiqueta: "Productos", icono: PackageSearch },
+              { href: "/descubrir?tipo=servicio", etiqueta: "Servicios", icono: Wrench },
+              { href: "/mapa?rol=negocio", etiqueta: "Negocios", icono: Store },
+              { href: "/mapa?rol=prestador", etiqueta: "Prestadores", icono: Handshake },
+            ].map(({ href, etiqueta, icono: Icono }) => (
+              <Link
+                key={href}
+                href={href}
+                className="inline-flex items-center gap-1.5 rounded-full border border-borde bg-superficie px-3 py-1.5 text-xs text-tenue transition hover:bg-superficie2"
+              >
+                <Icono size={13} />
+                {etiqueta}
+              </Link>
+            ))}
+          </div>
+
+          <Link
+            href="/descubrir"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-marca hover:underline"
+          >
+            Explorar el feed completo <ArrowRight size={12} />
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 divide-x divide-borde border-t border-borde sm:grid-cols-4">
