@@ -16,7 +16,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <NavInferior />
+      <NavInferior sinLeer={sinLeer} />
     </div>
   );
 }
