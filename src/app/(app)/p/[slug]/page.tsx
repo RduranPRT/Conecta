@@ -175,6 +175,7 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
                 categoriaNombre={categoriaNombre}
                 reacciones={0}
                 reaccionada={false}
+                guardada={false}
                 patrocinado={false}
                 motivo=""
                 hayPerfil={Boolean(yo)}

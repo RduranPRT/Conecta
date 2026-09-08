@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { Heart, MapPin, MessageSquare } from "lucide-react";
+import { Bookmark, Heart, MapPin, MessageSquare } from "lucide-react";
 
-import { accionReaccionar } from "@/app/acciones";
+import { accionAlternarGuardado, accionReaccionar } from "@/app/acciones";
 import { Avatar, BotonEnlace, Insignia } from "@/components/ui";
 import { haceCuanto, monto as formatearMonto } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ type Props = {
   categoriaNombre: string | null;
   reacciones: number;
   reaccionada: boolean;
+  guardada: boolean;
   patrocinado: boolean;
   motivo: string;
   hayPerfil: boolean;
@@ -146,6 +147,19 @@ export function TarjetaPublicacion(props: Props) {
           >
             <Heart size={14} fill={props.reaccionada ? "currentColor" : "none"} />
             {props.reacciones}
+          </button>
+          <button
+            type="button"
+            disabled={!props.hayPerfil || pendiente}
+            onClick={() => iniciar(() => void accionAlternarGuardado(p.id))}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs transition",
+              props.guardada ? "text-marca" : "text-tenue hover:bg-superficie2",
+              !props.hayPerfil && "cursor-not-allowed opacity-50",
+            )}
+            aria-label="Guardar"
+          >
+            <Bookmark size={14} fill={props.guardada ? "currentColor" : "none"} />
           </button>
           <Link
             href={`/p/${props.autorSlug}#contacto`}

@@ -10,6 +10,7 @@ import { agentesContratados, necesidades, perfiles, verificaciones } from "@/db/
 import { auth } from "@/lib/auth";
 import { adjudicar, calificar, enviarPropuesta, registrarEntrega } from "@/lib/casos/propuestas";
 import { alternarReaccion, alternarSeguimiento, crearPublicacion } from "@/lib/casos/feed";
+import { alternarGuardado } from "@/lib/casos/guardados";
 import { enviarMensaje, iniciarConversacion } from "@/lib/casos/mensajes";
 import { invitarACotizar, publicarNecesidad } from "@/lib/casos/necesidades";
 import {
@@ -332,6 +333,14 @@ export async function accionSeguir(perfilId: number) {
   const perfil = await perfilOFalla();
   await alternarSeguimiento(perfilId, perfil.id);
   revalidatePath("/descubrir");
+}
+
+export async function accionAlternarGuardado(publicacionId: number) {
+  const perfil = await perfilOFalla();
+  await alternarGuardado(publicacionId, perfil.id);
+  revalidatePath("/descubrir");
+  revalidatePath("/guardados");
+  revalidatePath("/mi-conecta");
 }
 
 /* ── Mensajes ──────────────────────────────────────────────────────────── */

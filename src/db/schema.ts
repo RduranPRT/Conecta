@@ -493,6 +493,26 @@ export const reacciones = pgTable(
   (t) => [primaryKey({ columns: [t.publicacionId, t.perfilId] })],
 );
 
+/**
+ * Guardados: marcador simple de "quiero volver a esto", pedido por Álvaro en
+ * la propuesta de simplificación de navegación (sep-2026) como parte del hub
+ * "Mi Conecta". Mismo patrón que `reacciones`: clave compuesta, sin tabla de
+ * eventos propia más allá del registro en `eventos`.
+ */
+export const guardados = pgTable(
+  "guardados",
+  {
+    publicacionId: integer("publicacion_id")
+      .notNull()
+      .references(() => publicaciones.id, { onDelete: "cascade" }),
+    perfilId: integer("perfil_id")
+      .notNull()
+      .references(() => perfiles.id, { onDelete: "cascade" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.publicacionId, t.perfilId] })],
+);
+
 export const seguimientos = pgTable(
   "seguimientos",
   {

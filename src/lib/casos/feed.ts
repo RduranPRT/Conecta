@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   categorias,
   comunas,
+  guardados,
   necesidades,
   perfilCategorias,
   perfiles,
@@ -79,6 +80,13 @@ export async function feedPara(filtros: FiltrosFeed) {
               and ${reacciones.perfilId} = ${filtros.perfilId}
           )`.as("reaccionada")
         : sql<boolean>`false`.as("reaccionada"),
+      guardada: filtros.perfilId
+        ? sql<boolean>`exists (
+            select 1 from ${guardados}
+            where ${guardados.publicacionId} = ${publicaciones.id}
+              and ${guardados.perfilId} = ${filtros.perfilId}
+          )`.as("guardada")
+        : sql<boolean>`false`.as("guardada"),
     })
     .from(publicaciones)
     .innerJoin(perfiles, eq(perfiles.id, publicaciones.autorPerfilId))

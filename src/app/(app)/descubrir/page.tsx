@@ -108,6 +108,7 @@ export default async function PaginaDescubrir({
                 categoriaNombre={p.categoriaNombre}
                 reacciones={Number(p.reacciones)}
                 reaccionada={Boolean(p.reaccionada)}
+                guardada={Boolean(p.guardada)}
                 patrocinado={p.patrocinado}
                 motivo={p.motivo}
                 hayPerfil={Boolean(perfil)}
