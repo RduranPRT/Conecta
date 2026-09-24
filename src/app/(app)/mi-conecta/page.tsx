@@ -43,7 +43,7 @@ export default async function PaginaMiConecta() {
       href: "/actividad",
       icono: Activity,
       titulo: "Mi actividad",
-      descripcion: "Publicaciones, propuestas y respuestas",
+      descripcion: "Publicaciones, oportunidades, propuestas y respuestas",
     },
     {
       href: "/mi-catalogo",
@@ -55,7 +55,7 @@ export default async function PaginaMiConecta() {
       href: "/mi-perfil",
       icono: UserRound,
       titulo: "Mi perfil",
-      descripcion: "Edita tu información",
+      descripcion: "Edita tu información y tus categorías",
     },
     {
       href: "/guardados",

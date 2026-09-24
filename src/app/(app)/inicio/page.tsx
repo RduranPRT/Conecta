@@ -132,11 +132,6 @@ export default async function PaginaInicio() {
           <Encabezado
             titulo="Oportunidades para ti"
             bajada="Necesidades publicadas que calzan con tus categorías y tu zona."
-            acciones={
-              <BotonEnlace href="/actividad?vista=oportunidades" variante="secundario" tamano="sm">
-                Ver todas
-              </BotonEnlace>
-            }
           />
           {oportunidades.length ? (
             <div className="grid gap-3">
@@ -174,24 +169,13 @@ export default async function PaginaInicio() {
             <Vacio
               titulo="Todavía no hay oportunidades"
               descripcion="Cuando alguien publique una necesidad que calce con tus categorías y tu zona, aparecerá aquí automáticamente."
-            >
-              <BotonEnlace href="/mi-perfil" variante="secundario" tamano="sm">
-                Revisar mis categorías
-              </BotonEnlace>
-            </Vacio>
+            />
           )}
         </section>
       ) : null}
 
       <section>
-        <Encabezado
-          titulo="Tus necesidades"
-          acciones={
-            <BotonEnlace href="/publicar" tamano="sm">
-              Publicar una necesidad
-            </BotonEnlace>
-          }
-        />
+        <Encabezado titulo="Tus necesidades" />
         {misAbiertas.length ? (
           <div className="grid gap-3">
             {misAbiertas.slice(0, 4).map(({ necesidad, propuestas, comunaNombre }) => (
@@ -222,12 +206,8 @@ export default async function PaginaInicio() {
         ) : (
           <Vacio
             titulo="No tienes necesidades abiertas"
-            descripcion="Publica lo que necesitas y la plataforma buscará automáticamente quién puede resolverlo, cerca de ti."
-          >
-            <BotonEnlace href="/publicar" tamano="sm">
-              Publicar ahora
-            </BotonEnlace>
-          </Vacio>
+            descripcion="Usa «Necesito algo», arriba, y la plataforma buscará automáticamente quién puede resolverlo, cerca de ti."
+          />
         )}
       </section>
 
