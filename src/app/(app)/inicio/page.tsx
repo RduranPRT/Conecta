@@ -1,16 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, Bot, Handshake, PackageSearch, Sparkles, Store, Wrench } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronRight,
+  Handshake,
+  MapPin,
+  PackageSearch,
+  Plus,
+  Sparkles,
+  Store,
+  Wrench,
+} from "lucide-react";
 
 import { BuscadorRapido } from "@/components/buscador-rapido";
-import { TarjetaActor } from "@/components/tarjeta-actor";
-import { BotonEnlace, Encabezado, Insignia, Tarjeta, Vacio } from "@/components/ui";
-import { actividadDe, pulsoTerritorial } from "@/lib/casos/actividad";
-import { buscarActores } from "@/lib/casos/actores";
-import { listarNecesidades, oportunidadesDe } from "@/lib/casos/necesidades";
+import { TarjetaDestacada } from "@/components/tarjeta-destacada";
+import { Encabezado, Insignia, Vacio } from "@/components/ui";
+import { actividadDe } from "@/lib/casos/actividad";
+import { feedPara } from "@/lib/casos/feed";
+import { oportunidadesDe } from "@/lib/casos/necesidades";
 import { monto } from "@/lib/formato";
-import { intencionVacia } from "@/lib/ia/tipos";
 import { puedeOfrecer, requerirPerfil } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Inicio" };
@@ -25,106 +34,128 @@ const ESTADO_TONO: Record<string, "marca" | "alerta" | "exito" | "neutro"> = {
   cancelada: "neutro",
 };
 
+/** Accesos por tipo, como mosaicos (UX simplificada de Álvaro, sep-2026). */
+const ACCESOS = [
+  { href: "/descubrir?tipo=producto", etiqueta: "Productos", icono: PackageSearch },
+  { href: "/descubrir?tipo=servicio", etiqueta: "Servicios", icono: Wrench },
+  { href: "/mapa?rol=negocio", etiqueta: "Negocios", icono: Store },
+  { href: "/mapa?rol=prestador", etiqueta: "Prestadores", icono: Handshake },
+];
+
+/**
+ * Inicio: descubre, busca y publica. Sigue la propuesta de simplificación de
+ * Álvaro: buscador, accesos por tipo, «Necesito algo» / «Ofrezco algo» y
+ * publicaciones destacadas. Lo que es trabajo pendiente del usuario
+ * (oportunidades y necesidades abiertas) queda debajo; el resto de su
+ * actividad vive en Mi Conecta.
+ */
 export default async function PaginaInicio() {
   const perfil = await requerirPerfil("/inicio");
   const ofrece = puedeOfrecer(perfil);
 
-  const [actividad, pulso, oportunidades, abiertas, destacados] = await Promise.all([
+  const [actividad, oportunidades, feed] = await Promise.all([
     actividadDe(perfil.id),
-    pulsoTerritorial(perfil.comunaId),
     ofrece ? oportunidadesDe(perfil.id, 4) : Promise.resolve([]),
-    listarNecesidades({
-      comunaId: perfil.comunaId,
-      estado: ["publicada", "en_cotizacion"],
-      limite: 5,
-    }),
-    buscarActores(
-      { ...intencionVacia(""), comunaId: perfil.comunaId },
-      {
-        desde: perfil.lat && perfil.lng ? { lat: perfil.lat, lng: perfil.lng } : null,
-        limite: 3,
-        roles: ["prestador", "negocio", "proveedor", "productor"],
-      },
-    ),
+    feedPara({ perfilId: perfil.id, comunaId: perfil.comunaId, soloMiZona: true, limite: 12 }),
   ]);
+
+  // Las necesidades abiertas llegan a quien puede resolverlas por
+  // «Oportunidades para ti»; aquí se destacan productos, servicios y ofertas.
+  const destacadas = feed.filter((p) => p.publicacion.tipo !== "necesidad").slice(0, 3);
 
   const misAbiertas = actividad.misNecesidades.filter(
     (n) => n.necesidad.estado === "publicada" || n.necesidad.estado === "en_cotizacion",
   );
 
   return (
-    <div className="space-y-8">
-      <section className="tarjeta overflow-hidden">
-        <div className="bg-marca/10 px-5 py-6 sm:px-7">
-          <p className="text-xs font-medium uppercase tracking-wider text-marca">
-            {perfil.comunaNombre ?? "Tu territorio"}
-            {perfil.regionNombre ? ` · ${perfil.regionNombre}` : ""}
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold text-texto">
-            Hola, {perfil.nombre.split(" ")[0]}
-          </h1>
-          <p className="mt-1 text-sm text-tenue">
-            {ofrece
-              ? "Revisa tus oportunidades, responde cotizaciones y mantén tu disponibilidad al día."
-              : "Busca lo que necesitas o publícalo: la plataforma avisa a quien puede resolverlo."}
-          </p>
-          <div className="mt-4 max-w-xl">
-            <Suspense fallback={<div className="h-14" />}>
-              <BuscadorRapido tamano="lg" />
-            </Suspense>
+    <div className="mx-auto max-w-3xl space-y-7">
+      <section className="space-y-4">
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold text-texto">
+              Hola, {perfil.nombre.split(" ")[0]}
+            </h1>
+            <p className="mt-0.5 text-sm text-tenue">
+              Encuentra productos, servicios, negocios y prestadores cerca de ti.
+            </p>
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <BotonEnlace href="/publicar?tipo=necesidad" tamano="md">
-              Necesito algo
-            </BotonEnlace>
-            <BotonEnlace href="/publicar?tipo=oferta" variante="secundario" tamano="md">
-              Ofrezco algo
-            </BotonEnlace>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {[
-              { href: "/descubrir?tipo=producto", etiqueta: "Productos", icono: PackageSearch },
-              { href: "/descubrir?tipo=servicio", etiqueta: "Servicios", icono: Wrench },
-              { href: "/mapa?rol=negocio", etiqueta: "Negocios", icono: Store },
-              { href: "/mapa?rol=prestador", etiqueta: "Prestadores", icono: Handshake },
-            ].map(({ href, etiqueta, icono: Icono }) => (
-              <Link
-                key={href}
-                href={href}
-                className="inline-flex items-center gap-1.5 rounded-full border border-borde bg-superficie px-3 py-1.5 text-xs text-tenue transition hover:bg-superficie2"
-              >
-                <Icono size={13} />
-                {etiqueta}
-              </Link>
-            ))}
-          </div>
-
           <Link
-            href="/descubrir"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-marca hover:underline"
+            href="/mi-perfil"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-borde px-2.5 py-1 text-xs text-tenue transition hover:bg-superficie2"
+            title="Cambiar tu comuna desde Mi perfil"
           >
-            Explorar el feed completo <ArrowRight size={12} />
+            <MapPin size={13} className="text-marca" />
+            {perfil.comunaNombre ?? "Elige tu comuna"}
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 divide-x divide-borde border-t border-borde sm:grid-cols-4">
-          {[
-            { valor: pulso.actores, etiqueta: "actores en tu comuna" },
-            { valor: pulso.necesidadesAbiertas, etiqueta: "necesidades abiertas" },
-            {
-              valor: ofrece ? actividad.oportunidadesAbiertas : misAbiertas.length,
-              etiqueta: ofrece ? "oportunidades para ti" : "necesidades tuyas abiertas",
-            },
-            { valor: pulso.operacionesCerradas, etiqueta: "operaciones concretadas" },
-          ].map((m) => (
-            <div key={m.etiqueta} className="px-4 py-4 text-center">
-              <p className="text-xl font-semibold text-texto">{m.valor}</p>
-              <p className="mt-0.5 text-[11px] leading-tight text-tenue">{m.etiqueta}</p>
-            </div>
+        <Suspense fallback={<div className="h-14" />}>
+          <BuscadorRapido tamano="lg" />
+        </Suspense>
+
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
+          {ACCESOS.map(({ href, etiqueta, icono: Icono }) => (
+            <Link
+              key={href}
+              href={href}
+              className="tarjeta flex flex-col items-center gap-1.5 px-1 py-3 text-center transition hover:shadow-flotante"
+            >
+              <Icono size={22} className="text-marca" strokeWidth={1.8} />
+              <span className="text-[11px] font-medium text-texto sm:text-xs">{etiqueta}</span>
+            </Link>
           ))}
         </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <Link
+            href="/publicar?tipo=necesidad"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-marca/40 bg-marca/10 text-sm font-medium text-marca transition hover:bg-marca/15"
+          >
+            <Plus size={18} />
+            Necesito algo
+          </Link>
+          <Link
+            href="/publicar?tipo=oferta"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-marca text-sm font-medium text-white transition hover:bg-marca-fuerte"
+          >
+            <Plus size={18} />
+            Ofrezco algo
+          </Link>
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="titulo-seccion">Publicaciones destacadas</h2>
+          <Link
+            href="/descubrir"
+            className="inline-flex items-center gap-0.5 text-xs font-medium text-marca hover:underline"
+          >
+            Ver todas <ChevronRight size={14} />
+          </Link>
+        </div>
+        {destacadas.length ? (
+          <div className="grid gap-3">
+            {destacadas.map((p) => (
+              <TarjetaDestacada
+                key={p.publicacion.id}
+                publicacion={p.publicacion}
+                autorNombre={p.autorNombre}
+                autorSlug={p.autorSlug}
+                comunaNombre={p.comunaNombre}
+                categoriaNombre={p.categoriaNombre}
+                guardada={Boolean(p.guardada)}
+                patrocinado={p.patrocinado}
+                hayPerfil
+              />
+            ))}
+          </div>
+        ) : (
+          <Vacio
+            titulo="Todavía no hay publicaciones en tu zona"
+            descripcion="Usa «Ofrezco algo» para mostrar tus productos o servicios a quienes están cerca."
+          />
+        )}
       </section>
 
       {ofrece ? (
@@ -174,9 +205,9 @@ export default async function PaginaInicio() {
         </section>
       ) : null}
 
-      <section>
-        <Encabezado titulo="Tus necesidades" />
-        {misAbiertas.length ? (
+      {misAbiertas.length ? (
+        <section>
+          <Encabezado titulo="Tus necesidades" />
           <div className="grid gap-3">
             {misAbiertas.slice(0, 4).map(({ necesidad, propuestas, comunaNombre }) => (
               <Link
@@ -203,72 +234,6 @@ export default async function PaginaInicio() {
               </Link>
             ))}
           </div>
-        ) : (
-          <Vacio
-            titulo="No tienes necesidades abiertas"
-            descripcion="Usa «Necesito algo», arriba, y la plataforma buscará automáticamente quién puede resolverlo, cerca de ti."
-          />
-        )}
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section>
-          <h2 className="titulo-seccion mb-3">Abiertas en tu comuna</h2>
-          {abiertas.length ? (
-            <Tarjeta className="divide-y divide-borde">
-              {abiertas.map(({ necesidad, comunaNombre, propuestas }) => (
-                <Link
-                  key={necesidad.id}
-                  href={`/necesidades/${necesidad.id}`}
-                  className="block px-4 py-3 transition hover:bg-superficie2"
-                >
-                  <p className="truncate text-sm text-texto">{necesidad.titulo}</p>
-                  <p className="mt-0.5 text-xs text-tenue">
-                    {comunaNombre ?? "—"} · {propuestas} propuesta(s)
-                  </p>
-                </Link>
-              ))}
-            </Tarjeta>
-          ) : (
-            <Tarjeta className="px-4 py-6 text-center text-sm text-tenue">
-              Nadie ha publicado una necesidad todavía.
-            </Tarjeta>
-          )}
-        </section>
-
-        <section>
-          <h2 className="titulo-seccion mb-3">Cerca de ti</h2>
-          <div className="grid gap-3">
-            {destacados.length ? (
-              destacados.map((actor) => <TarjetaActor key={actor.id} actor={actor} />)
-            ) : (
-              <Tarjeta className="px-4 py-6 text-center text-sm text-tenue">
-                Aún no hay actores registrados en tu comuna.
-              </Tarjeta>
-            )}
-          </div>
-        </section>
-      </div>
-
-      {pulso.categoriasCalientes.length ? (
-        <section className="tarjeta p-5">
-          <div className="flex items-center gap-2">
-            <Bot size={16} className="text-marca" />
-            <h2 className="text-sm font-semibold text-texto">Lectura del territorio</h2>
-          </div>
-          <p className="mt-2 text-sm text-tenue">
-            En los últimos 30 días, lo más pedido en {perfil.comunaNombre ?? "tu zona"} fue{" "}
-            {pulso.categoriasCalientes
-              .map((c) => `${c.nombre.toLowerCase()} (${c.total})`)
-              .join(", ")}
-            . {pulso.necesidadesAbiertas > 0
-              ? `Quedan ${pulso.necesidadesAbiertas} necesidades sin adjudicar.`
-              : "No quedan necesidades sin adjudicar."}
-          </p>
-          <p className="mt-2 text-xs text-tenue">
-            En la Fase 2 esta lectura la produce el Agente Analítica. Hoy sale de una consulta
-            directa a la base, sin modelo de por medio.
-          </p>
         </section>
       ) : null}
     </div>

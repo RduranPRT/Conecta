@@ -90,7 +90,10 @@ export default async function PaginaMiConecta() {
         bajada="Todo lo que necesitas para gestionar tu cuenta y tu actividad, en un solo lugar."
       />
 
-      <Tarjeta className="flex items-center gap-3 p-4">
+      <Link
+        href={`/p/${perfil.slug}`}
+        className="tarjeta flex items-center gap-3 p-4 transition hover:shadow-flotante"
+      >
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-marca/10 font-semibold text-marca">
           {perfil.nombre.slice(0, 1).toUpperCase()}
         </div>
@@ -101,7 +104,8 @@ export default async function PaginaMiConecta() {
             {perfil.roles.length ? ` · ${perfil.roles.join(", ")}` : ""}
           </p>
         </div>
-      </Tarjeta>
+        <ChevronRight size={16} className="shrink-0 text-tenue" />
+      </Link>
 
       <Tarjeta className="divide-y divide-borde">
         {secciones.map(({ href, icono: Icono, titulo, descripcion, contador }) => (
