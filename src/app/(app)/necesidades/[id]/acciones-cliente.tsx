@@ -10,6 +10,7 @@ import {
   accionRegistrarEntrega,
   type EstadoAccion,
 } from "@/app/acciones";
+import { CampoTelefono } from "@/components/campos-ficha";
 import { Aviso, Boton } from "@/components/ui";
 
 export function BotonInvitar({
@@ -78,10 +79,13 @@ export function FormularioPropuesta({
   necesidadId,
   moneda,
   propuestaPrevia,
+  pedirTelefono,
 }: {
   necesidadId: number;
   moneda: string;
   propuestaPrevia?: { monto: string; plazoDias: number; mensaje: string | null } | null;
+  /** Requisito por acción (S05): si falta el teléfono, se pide aquí y se explica para qué. */
+  pedirTelefono?: { prefijo: string; motivo: string } | null;
 }) {
   const [estado, enviar, pendiente] = useActionState<EstadoAccion, FormData>(
     accionEnviarPropuesta,
@@ -137,6 +141,13 @@ export function FormularioPropuesta({
           placeholder="Visita, diagnóstico, repuesto y garantía de 3 meses."
         />
       </div>
+
+      {pedirTelefono ? (
+        <div className="rounded-xl border border-alerta/30 bg-alerta/5 p-3">
+          <CampoTelefono prefijo={pedirTelefono.prefijo} requerido id="telefono-propuesta" />
+          <p className="ayuda mt-0">{pedirTelefono.motivo} Queda guardado en tu perfil.</p>
+        </div>
+      ) : null}
 
       <Boton type="submit" disabled={pendiente}>
         {pendiente

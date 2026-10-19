@@ -35,6 +35,15 @@ export const rolActorEnum = pgEnum("rol_actor", [
 
 export const tipoCategoriaEnum = pgEnum("tipo_categoria", ["servicio", "producto", "ambos"]);
 
+/** Quién está detrás del perfil. Es distinto de los roles: una empresa puede ser negocio y proveedor. */
+export const tipoIdentidadEnum = pgEnum("tipo_identidad", ["persona", "empresa"]);
+
+export const estadoSolicitudCategoriaEnum = pgEnum("estado_solicitud_categoria", [
+  "pendiente",
+  "asignada",
+  "descartada",
+]);
+
 export const tipoPublicacionEnum = pgEnum("tipo_publicacion", [
   "producto",
   "servicio",
@@ -153,6 +162,12 @@ export const comunas = pgTable(
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Taxonomía de categorías (jerárquica y común a servicios y productos)
+ *
+ * Dos niveles: un rubro (sin padre) agrupa especialidades (con padre). La
+ * especialidad es lo que un perfil ofrece y lo que se busca; el oficio es la
+ * forma en que la gente nombra a quien la ejerce («gásfiter» → Gasfitería).
+ * Una especialidad tiene una sola identidad, aunque se descubra desde varios
+ * rubros (ver `categoriaRubros`).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export const categorias = pgTable(
@@ -162,13 +177,38 @@ export const categorias = pgTable(
     slug: text("slug").notNull().unique(),
     nombre: text("nombre").notNull(),
     tipo: tipoCategoriaEnum("tipo").notNull().default("ambos"),
+    /** NULL = rubro. Con valor = especialidad dentro de ese rubro principal. */
     padreId: integer("padre_id"),
     icono: text("icono"),
+    /** Nombre de quien ejerce la especialidad, cuando existe («Electricista»). */
+    oficio: text("oficio"),
+    /** Ejemplos cotidianos para reconocer la categoría sin conocer su nombre. */
+    ejemplos: text("ejemplos"),
     /** Palabras que el intérprete de búsqueda asocia a esta categoría. */
     sinonimos: jsonb("sinonimos").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     orden: integer("orden").notNull().default(0),
   },
   (t) => [index("categorias_padre_idx").on(t.padreId)],
+);
+
+/**
+ * Rubros secundarios de una especialidad: Climatización vive en Hogar y
+ * también se descubre desde Soporte técnico, sin duplicar la categoría.
+ */
+export const categoriaRubros = pgTable(
+  "categoria_rubros",
+  {
+    categoriaId: integer("categoria_id")
+      .notNull()
+      .references(() => categorias.id, { onDelete: "cascade" }),
+    rubroId: integer("rubro_id")
+      .notNull()
+      .references(() => categorias.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.categoriaId, t.rubroId] }),
+    index("categoria_rubros_rubro_idx").on(t.rubroId),
+  ],
 );
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -184,6 +224,7 @@ export const perfiles = pgTable(
       .unique(),
     slug: text("slug").notNull().unique(),
     nombre: text("nombre").notNull(),
+    tipoIdentidad: tipoIdentidadEnum("tipo_identidad").notNull().default("persona"),
     descripcion: text("descripcion"),
     avatarUrl: text("avatar_url"),
     /** Identificador tributario local (RUT en Chile). El campo no asume país. */
@@ -249,6 +290,34 @@ export const perfilCategorias = pgTable(
     principal: boolean("principal").notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.perfilId, t.categoriaId] })],
+);
+
+/**
+ * «Otro»: actividad que el perfil no encontró en la taxonomía. El perfil se
+ * completa igual; el Centro de Control la asigna a una categoría existente o
+ * la usa como evidencia para crear una nueva. También es demanda real (S25).
+ */
+export const solicitudesCategoria = pgTable(
+  "solicitudes_categoria",
+  {
+    id: serial("id").primaryKey(),
+    perfilId: integer("perfil_id")
+      .notNull()
+      .references(() => perfiles.id, { onDelete: "cascade" }),
+    texto: text("texto").notNull(),
+    /** Rubro donde la persona creía que debía estar, si lo indicó. */
+    rubroId: integer("rubro_id").references(() => categorias.id, { onDelete: "set null" }),
+    estado: estadoSolicitudCategoriaEnum("estado").notNull().default("pendiente"),
+    categoriaAsignadaId: integer("categoria_asignada_id").references(() => categorias.id, {
+      onDelete: "set null",
+    }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    resueltoEn: timestamp("resuelto_en", { withTimezone: true }),
+  },
+  (t) => [
+    index("solicitudes_categoria_estado_idx").on(t.estado),
+    index("solicitudes_categoria_perfil_idx").on(t.perfilId),
+  ],
 );
 
 /** Zona de cobertura: comunas donde opera, distintas de la ubicación física. */
@@ -776,4 +845,6 @@ export type Publicacion = typeof publicaciones.$inferSelect;
 export type Operacion = typeof operaciones.$inferSelect;
 export type Comuna = typeof comunas.$inferSelect;
 export type Categoria = typeof categorias.$inferSelect;
+export type SolicitudCategoria = typeof solicitudesCategoria.$inferSelect;
+export type TipoIdentidad = (typeof tipoIdentidadEnum.enumValues)[number];
 export type RolActor = (typeof rolActorEnum.enumValues)[number];

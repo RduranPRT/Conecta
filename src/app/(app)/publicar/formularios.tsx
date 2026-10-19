@@ -7,18 +7,19 @@ import {
   accionPublicarNecesidad,
   type EstadoAccion,
 } from "@/app/acciones";
-import type { OpcionCategoria, OpcionComuna } from "@/components/campos-ficha";
+import { SelectorComuna, type Territorio } from "@/components/selector-comuna";
+import { SelectCategoria, type RubroOpcion } from "@/components/selector-especialidades";
 import { Aviso, Boton } from "@/components/ui";
 
 type Props = {
-  comunas: OpcionComuna[];
-  categorias: OpcionCategoria[];
+  territorio: Territorio;
+  rubros: RubroOpcion[];
   comunaPorDefecto: number | null;
 };
 
 export function FormularioNecesidad({
-  comunas,
-  categorias,
+  territorio,
+  rubros,
   comunaPorDefecto,
   textoInicial,
 }: Props & { textoInicial?: string }) {
@@ -64,38 +65,14 @@ export function FormularioNecesidad({
         </p>
       </div>
 
+      <SelectorComuna territorio={territorio} inicial={comunaPorDefecto} requerido idBase="necesidad" />
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
+        <div className="sm:col-span-2">
           <label className="etiqueta" htmlFor="categoriaId">
             Categoría (opcional)
           </label>
-          <select id="categoriaId" name="categoriaId" className="campo" defaultValue="">
-            <option value="">Que la deduzca la plataforma</option>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="etiqueta" htmlFor="comunaId">
-            Comuna
-          </label>
-          <select
-            id="comunaId"
-            name="comunaId"
-            className="campo"
-            defaultValue={comunaPorDefecto ?? ""}
-          >
-            <option value="">Sin comuna</option>
-            {comunas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
+          <SelectCategoria rubros={rubros} vacia="Que la deduzca la plataforma" />
         </div>
 
         <div>
@@ -146,8 +123,8 @@ export function FormularioNecesidad({
 }
 
 export function FormularioPublicacion({
-  comunas,
-  categorias,
+  territorio,
+  rubros,
   comunaPorDefecto,
   tipoInicial = "oferta",
 }: Props & { tipoInicial?: string }) {
@@ -192,7 +169,7 @@ export function FormularioPublicacion({
         <textarea id="cuerpo" name="cuerpo" className="campo min-h-[6rem]" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="etiqueta" htmlFor="precio">
             Precio (opcional)
@@ -203,34 +180,11 @@ export function FormularioPublicacion({
           <label className="etiqueta" htmlFor="categoriaId">
             Categoría
           </label>
-          <select id="categoriaId" name="categoriaId" className="campo" defaultValue="">
-            <option value="">Sin categoría</option>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="etiqueta" htmlFor="comunaId">
-            Comuna
-          </label>
-          <select
-            id="comunaId"
-            name="comunaId"
-            className="campo"
-            defaultValue={comunaPorDefecto ?? ""}
-          >
-            <option value="">Sin comuna</option>
-            {comunas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
+          <SelectCategoria rubros={rubros} />
         </div>
       </div>
+
+      <SelectorComuna territorio={territorio} inicial={comunaPorDefecto} idBase="publicacion" />
 
       <Boton type="submit" className="w-full" disabled={pendiente}>
         {pendiente ? "Publicando…" : "Publicar en el feed"}

@@ -1,53 +1,40 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Bot, Compass, Handshake, Map, Search, ShieldCheck } from "lucide-react";
+import { Megaphone, Search, ShieldCheck, Store } from "lucide-react";
 
 import { BuscadorRapido } from "@/components/buscador-rapido";
 import { Marca } from "@/components/encabezado-app";
 import { BotonEnlace, Insignia } from "@/components/ui";
 import { pulsoTerritorial } from "@/lib/casos/actividad";
-import { comunasActivas } from "@/lib/casos/perfil";
+import { arbolDeRubros } from "@/lib/casos/categorias";
+import { comunaPiloto, comunasConActividad } from "@/lib/casos/territorio";
 import { obtenerPerfil } from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
-const PILARES = [
+/**
+ * Qué se puede hacer, con ejemplos de la vida diaria (S01). Lo pidieron
+ * quienes probaron la plataforma sin que nadie se la explicara.
+ */
+const COMO_FUNCIONA = [
   {
     icono: Search,
-    titulo: "El buscador encuentra",
-    texto:
-      "Una sola caja para personas, prestadores, negocios, proveedores y productos. Escribe como hablas: «un gasfíter que pueda venir hoy cerca de mí».",
+    titulo: "Busca lo que necesitas",
+    ejemplo: "«Un gásfiter que pueda venir hoy» o «repuestos para mi auto en Maipú».",
+    texto: "Escríbelo como lo dirías. Te mostramos quién lo ofrece cerca.",
   },
   {
-    icono: Map,
-    titulo: "El mapa descubre",
-    texto:
-      "Explora tu comuna sin buscar nada. Iconografía distinta por tipo de actor y ficha resumida al tocar cada punto.",
+    icono: Megaphone,
+    titulo: "O pídelo y deja que te ofrezcan",
+    ejemplo: "«Necesito 20 sacos de harina para el jueves».",
+    texto: "Publícalo una vez y avisamos a quienes pueden resolverlo para que te coticen.",
   },
   {
-    icono: Compass,
-    titulo: "El feed conecta",
-    texto:
-      "Productos, servicios, ofertas y necesidades de tu territorio. Cada publicación termina en una acción, no en un scroll.",
-  },
-  {
-    icono: Handshake,
-    titulo: "Las operaciones concretan",
-    texto:
-      "Necesidad → propuestas → comparación → adjudicación → entrega → calificación mutua, con la traza completa.",
-  },
-  {
-    icono: Bot,
-    titulo: "La IA coordina",
-    texto:
-      "Interpreta lo que pides, convierte necesidades en oportunidades y ordena los resultados. La autonomía la fija el usuario.",
-  },
-  {
-    icono: ShieldCheck,
-    titulo: "La confianza no se compra",
-    texto:
-      "Verificación y reputación se ganan con operaciones reales. Pagar aumenta visibilidad y capacidades, nunca confianza.",
+    icono: Store,
+    titulo: "Ofrece lo que haces o vendes",
+    ejemplo: "¿Vendes pan amasado, reparas lavadoras o eres abogado?",
+    texto: "Crea tu perfil gratis y aparece cuando alguien de tu zona lo busque.",
   },
 ];
 
@@ -55,9 +42,12 @@ export default async function Portada() {
   const perfil = await obtenerPerfil();
   if (perfil) redirect("/inicio");
 
-  const comunas = await comunasActivas();
-  const piloto = comunas.find((c) => c.activa) ?? comunas[0] ?? null;
-  const pulso = await pulsoTerritorial(piloto?.id ?? null);
+  const [piloto, pulso, rubros, conActividad] = await Promise.all([
+    comunaPiloto(),
+    pulsoTerritorial(null),
+    arbolDeRubros(),
+    comunasConActividad(),
+  ]);
 
   return (
     <div className="min-h-dvh">
@@ -75,48 +65,89 @@ export default async function Portada() {
         </div>
       </header>
 
-      <section className="contenedor py-14 sm:py-20">
-        <div className="mx-auto max-w-3xl text-center">
-          {piloto ? (
-            <Insignia tono="marca">Comuna piloto · {piloto.nombre}</Insignia>
-          ) : null}
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-texto sm:text-5xl">
-            Todo lo que tu territorio ofrece, en un solo lugar
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-tenue sm:text-lg">
-            Conecta personas, prestadores de servicios, negocios, proveedores y productores.
-            Busca lo que necesitas, descubre lo que existe alrededor y cierra la operación
-            sin salir de la plataforma.
+      <section className="contenedor pb-10 pt-8 sm:pb-14 sm:pt-14">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-sm text-tenue">
+            Vecinos, técnicos, profesionales, negocios y proveedores de tu comuna, en un solo
+            lugar.
           </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-texto sm:text-5xl">
+            ¿Qué necesitas?
+          </h1>
 
-          <div className="mx-auto mt-8 max-w-2xl">
+          <div className="mt-5">
             <Suspense fallback={<div className="h-14" />}>
               <BuscadorRapido tamano="lg" />
             </Suspense>
-            <p className="mt-3 text-xs text-tenue">
-              Prueba con una frase completa. La plataforma interpreta la intención y arma
-              los filtros por ti.
-            </p>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <BotonEnlace href="/mapa" variante="secundario">
-              Explorar el mapa
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <BotonEnlace href="/explorar" variante="secundario">
+              Explorar sin cuenta
             </BotonEnlace>
-            <BotonEnlace href="/descubrir" variante="secundario">
-              Ver el feed
+            <BotonEnlace href="/mapa" variante="fantasma">
+              Ver el mapa
             </BotonEnlace>
           </div>
+
+          {piloto ? (
+            <p className="mt-5 text-xs text-tenue">
+              <Insignia tono="marca">Piloto · {piloto.nombre}</Insignia>{" "}
+              Funciona en todo Chile; donde recién empezamos puede haber poca oferta todavía.
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="border-y border-borde bg-superficie">
+        <div className="contenedor py-10 sm:py-14">
+          <h2 className="text-center text-xl font-semibold text-texto">Cómo funciona</h2>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {COMO_FUNCIONA.map(({ icono: Icono, titulo, ejemplo, texto }) => (
+              <div key={titulo} className="tarjeta p-5">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-marca/10 text-marca">
+                  <Icono size={19} />
+                </span>
+                <h3 className="mt-3 text-[15px] font-semibold text-texto">{titulo}</h3>
+                <p className="mt-1.5 text-sm italic text-texto">{ejemplo}</p>
+                <p className="mt-1.5 text-sm text-tenue">{texto}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mx-auto mt-6 flex max-w-xl items-start justify-center gap-2 text-center text-xs text-tenue">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-marca" />
+            La reputación se gana con trabajos reales y no se puede comprar. Lo patrocinado
+            siempre va marcado.
+          </p>
+        </div>
+      </section>
+
+      <section className="contenedor py-10 sm:py-14">
+        <h2 className="text-center text-xl font-semibold text-texto">¿Qué estás buscando?</h2>
+        <p className="mt-1 text-center text-sm text-tenue">
+          Si no sabes cómo se llama, empieza por el área.
+        </p>
+        <div className="mx-auto mt-6 grid max-w-4xl grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {rubros.map((r) => (
+            <Link
+              key={r.id}
+              href={`/explorar/${r.slug}`}
+              className="flex items-center gap-2 rounded-xl border border-borde bg-superficie px-3 py-2.5 text-sm text-texto transition hover:bg-superficie2"
+            >
+              <span aria-hidden>{r.icono}</span>
+              <span className="min-w-0 truncate">{r.nombre}</span>
+            </Link>
+          ))}
         </div>
 
-        <dl className="mx-auto mt-14 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+        <dl className="mx-auto mt-10 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { valor: pulso.actores, etiqueta: "actores en la red" },
-            { valor: pulso.necesidadesAbiertas, etiqueta: "necesidades abiertas" },
-            { valor: pulso.operacionesCerradas, etiqueta: "operaciones concretadas" },
-            { valor: comunas.length, etiqueta: "comunas habilitadas" },
+            { valor: pulso.actores, etiqueta: "perfiles en la red" },
+            { valor: pulso.necesidadesAbiertas, etiqueta: "pedidos abiertos" },
+            { valor: pulso.operacionesCerradas, etiqueta: "trabajos concretados" },
+            { valor: conActividad, etiqueta: "comunas con oferta" },
           ].map((m) => (
-            <div key={m.etiqueta} className="tarjeta px-4 py-5 text-center">
+            <div key={m.etiqueta} className="tarjeta px-4 py-4 text-center">
               <dt className="text-2xl font-semibold text-texto">{m.valor}</dt>
               <dd className="mt-1 text-xs text-tenue">{m.etiqueta}</dd>
             </div>
@@ -124,39 +155,12 @@ export default async function Portada() {
         </dl>
       </section>
 
-      <section className="border-t border-borde bg-superficie">
-        <div className="contenedor py-14 sm:py-20">
-          <h2 className="text-center text-xl font-semibold text-texto sm:text-2xl">
-            Cinco formas de navegar, una sola base de información
-          </h2>
-          <p className="mx-auto mt-2 max-w-2xl text-center text-sm text-tenue">
-            El buscador, el mapa, el feed, las operaciones y la IA no son sistemas separados:
-            leen y escriben sobre los mismos datos y estados.
-          </p>
-
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {PILARES.map(({ icono: Icono, titulo, texto }) => (
-              <div key={titulo} className="tarjeta p-5">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-marca/10 text-marca">
-                  <Icono size={19} />
-                </span>
-                <h3 className="mt-3.5 text-[15px] font-semibold text-texto">{titulo}</h3>
-                <p className="mt-1.5 text-sm text-tenue">{texto}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="contenedor py-14 sm:py-20">
-        <div className="tarjeta flex flex-col items-center gap-4 px-6 py-12 text-center">
-          <h2 className="text-xl font-semibold text-texto sm:text-2xl">
-            Crear tu perfil es gratis y toma dos minutos
-          </h2>
+      <section className="contenedor pb-14">
+        <div className="tarjeta flex flex-col items-center gap-3 px-6 py-10 text-center">
+          <h2 className="text-xl font-semibold text-texto">Crear tu cuenta es gratis</h2>
           <p className="max-w-xl text-sm text-tenue">
-            Aparecer en el buscador y en el mapa, publicar, contactar, recibir reseñas y
-            recibir oportunidades básicas no cuesta nada. Una identidad, todos los roles
-            que necesites.
+            Una sola cuenta para buscar y, si quieres, ofrecer. Te pedimos lo mínimo: el resto lo
+            completas cuando lo necesites.
           </p>
           <BotonEnlace href="/registro" tamano="lg">
             Crear mi cuenta
@@ -168,6 +172,9 @@ export default async function Portada() {
         <div className="contenedor flex flex-col items-center justify-between gap-3 text-xs text-tenue sm:flex-row">
           <p>Conecta · prototipo funcional · {new Date().getFullYear()}</p>
           <div className="flex gap-4">
+            <Link href="/explorar" className="hover:text-texto">
+              Explorar
+            </Link>
             <Link href="/buscar" className="hover:text-texto">
               Buscar
             </Link>
@@ -175,7 +182,7 @@ export default async function Portada() {
               Mapa
             </Link>
             <Link href="/descubrir" className="hover:text-texto">
-              Descubrir
+              Publicaciones
             </Link>
           </div>
         </div>

@@ -14,15 +14,20 @@ import { alternarGuardado } from "@/lib/casos/guardados";
 import { enviarMensaje, iniciarConversacion } from "@/lib/casos/mensajes";
 import { invitarACotizar, publicarNecesidad } from "@/lib/casos/necesidades";
 import {
-  actualizarPerfil,
+  cambiarDisponibilidadItem,
+  crearItem,
+  editarItem,
+  type EntradaItem,
+} from "@/lib/casos/catalogo";
+import { resolverSolicitudCategoria } from "@/lib/casos/categorias";
+import {
+  completarTelefono,
   crearPerfil,
-  fijarCategorias,
-  fijarCoberturas,
   fijarDisponibilidad,
-  fijarRoles,
+  guardarFicha,
 } from "@/lib/casos/perfil";
 import { obtenerPerfil, obtenerSesion } from "@/lib/sesion";
-import type { RolActor } from "@/db/schema";
+import type { RolActor, TipoIdentidad } from "@/db/schema";
 
 export type EstadoAccion = { ok?: boolean; error?: string; mensaje?: string; id?: number };
 
@@ -38,6 +43,29 @@ function numero(formData: FormData, campo: string): number | null {
   if (!valor) return null;
   const n = Number(valor);
   return Number.isNaN(n) ? null : n;
+}
+
+function enteros(formData: FormData, campo: string) {
+  return formData
+    .getAll(campo)
+    .map((c) => Number(c))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+function textos(formData: FormData, campo: string) {
+  return formData
+    .getAll(campo)
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+}
+
+function tipoIdentidad(formData: FormData): TipoIdentidad {
+  return texto(formData, "tipoIdentidad") === "empresa" ? "empresa" : "persona";
+}
+
+function esAdministrador(email: string | null | undefined) {
+  const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase());
+  return Boolean(email && admins.includes(email.toLowerCase()));
 }
 
 async function perfilOFalla() {
@@ -106,28 +134,22 @@ export async function accionCrearPerfil(
   const sesion = await obtenerSesion();
   if (!sesion?.user?.id) return { error: "Tu sesión expiró. Vuelve a ingresar." };
 
-  const nombre = texto(formData, "nombre");
-  if (!nombre) return { error: "Escribe el nombre con el que quieres aparecer." };
-
   const roles = formData.getAll("roles").map(String) as RolActor[];
-  const comunaId = numero(formData, "comunaId");
-  const categoriaIds = formData
-    .getAll("categorias")
-    .map((c) => Number(c))
-    .filter((n) => !Number.isNaN(n));
 
   try {
     await crearPerfil({
       usuarioId: sesion.user.id,
-      nombre,
+      nombre: texto(formData, "nombre"),
+      tipoIdentidad: tipoIdentidad(formData),
       roles: roles.length ? roles : ["persona"],
-      comunaId,
+      comunaId: numero(formData, "comunaId"),
       identificadorFiscal: texto(formData, "rut") || null,
       telefono: texto(formData, "telefono") || null,
       descripcion: texto(formData, "descripcion") || null,
       direccion: texto(formData, "direccion") || null,
       radioKm: numero(formData, "radioKm"),
-      categoriaIds,
+      categoriaIds: enteros(formData, "categorias"),
+      otrasActividades: textos(formData, "otrasActividades"),
       lat: numero(formData, "lat"),
       lng: numero(formData, "lng"),
     });
@@ -135,7 +157,7 @@ export async function accionCrearPerfil(
     return { error: error instanceof Error ? error.message : "No se pudo crear el perfil." };
   }
 
-  redirect("/inicio");
+  redirect("/bienvenida");
 }
 
 export async function accionActualizarPerfil(
@@ -145,18 +167,12 @@ export async function accionActualizarPerfil(
   const perfil = await perfilOFalla();
 
   const roles = formData.getAll("roles").map(String) as RolActor[];
-  const categoriaIds = formData
-    .getAll("categorias")
-    .map((c) => Number(c))
-    .filter((n) => !Number.isNaN(n));
-  const comunaIds = formData
-    .getAll("cobertura")
-    .map((c) => Number(c))
-    .filter((n) => !Number.isNaN(n));
 
   try {
-    await actualizarPerfil(perfil.id, {
+    await guardarFicha(perfil.id, {
       nombre: texto(formData, "nombre") || perfil.nombre,
+      tipoIdentidad: tipoIdentidad(formData),
+      roles: roles.length ? roles : ["persona"],
       descripcion: texto(formData, "descripcion") || null,
       telefono: texto(formData, "telefono") || null,
       correoPublico: texto(formData, "correoPublico") || null,
@@ -167,17 +183,17 @@ export async function accionActualizarPerfil(
       radioKm: numero(formData, "radioKm"),
       lat: numero(formData, "lat"),
       lng: numero(formData, "lng"),
+      categoriaIds: enteros(formData, "categorias"),
+      otrasActividades: textos(formData, "otrasActividades"),
+      coberturaIds: enteros(formData, "cobertura"),
     });
-    if (roles.length) await fijarRoles(perfil.id, roles);
-    await fijarCategorias(perfil.id, categoriaIds);
-    if (comunaIds.length) await fijarCoberturas(perfil.id, comunaIds);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo guardar." };
   }
 
   revalidatePath("/mi-perfil");
   revalidatePath(`/p/${perfil.slug}`);
-  return { ok: true, mensaje: "Ficha actualizada." };
+  return { ok: true, mensaje: "Listo: tu perfil quedó actualizado." };
 }
 
 export async function accionDisponibilidad(disponible: boolean) {
@@ -266,6 +282,8 @@ export async function accionEnviarPropuesta(
   if (!monto || monto <= 0) return { error: "Indica un monto." };
 
   try {
+    const telefono = texto(formData, "telefono");
+    if (telefono) await completarTelefono(perfil.id, telefono);
     await enviarPropuesta({
       necesidadId,
       perfilId: perfil.id,
@@ -427,8 +445,7 @@ export async function accionResolverVerificacion(
   estado: "verificado" | "rechazado",
 ) {
   const sesion = await obtenerSesion();
-  const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase());
-  if (!sesion?.user?.email || !admins.includes(sesion.user.email.toLowerCase())) {
+  if (!esAdministrador(sesion?.user?.email)) {
     throw new Error("Solo el equipo del Centro de Control puede resolver verificaciones.");
   }
 
@@ -438,6 +455,30 @@ export async function accionResolverVerificacion(
     .where(eq(verificaciones.id, verificacionId));
 
   revalidatePath("/centro-de-control");
+}
+
+export async function accionResolverSolicitudCategoria(
+  _estado: EstadoAccion = VACIO,
+  formData: FormData,
+): Promise<EstadoAccion> {
+  const sesion = await obtenerSesion();
+  if (!esAdministrador(sesion?.user?.email)) {
+    return { error: "Solo el equipo del Centro de Control puede resolver solicitudes." };
+  }
+  const solicitudId = numero(formData, "solicitudId");
+  if (!solicitudId) return { error: "Falta la solicitud." };
+  const descartar = texto(formData, "decision") === "descartar";
+  const categoriaId = descartar ? null : numero(formData, "categoriaId");
+  if (!descartar && !categoriaId) return { error: "Elige la especialidad que corresponde." };
+
+  try {
+    await resolverSolicitudCategoria({ solicitudId, categoriaId });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo resolver." };
+  }
+
+  revalidatePath("/centro-de-control");
+  return { ok: true, mensaje: descartar ? "Solicitud descartada." : "Actividad asignada." };
 }
 
 export async function accionCancelarNecesidad(necesidadId: number) {
@@ -461,4 +502,44 @@ export async function accionCancelarNecesidad(necesidadId: number) {
 export async function accionPerfilPorSlug(slug: string) {
   const fila = await db.query.perfiles.findFirst({ where: eq(perfiles.slug, slug) });
   return fila ?? null;
+}
+
+/* ── Catálogo de productos y servicios ─────────────────────────────────── */
+
+function entradaItem(formData: FormData): EntradaItem {
+  return {
+    tipo: texto(formData, "tipo") === "servicio" ? "servicio" : "producto",
+    nombre: texto(formData, "nombre"),
+    descripcion: texto(formData, "descripcion") || null,
+    categoriaId: numero(formData, "categoriaId"),
+    precio: numero(formData, "precio"),
+    unidad: texto(formData, "unidad") || null,
+    imagenUrl: texto(formData, "imagenUrl") || null,
+  };
+}
+
+export async function accionGuardarItem(
+  _estado: EstadoAccion = VACIO,
+  formData: FormData,
+): Promise<EstadoAccion> {
+  const perfil = await perfilOFalla();
+  const itemId = numero(formData, "itemId");
+
+  try {
+    if (itemId) await editarItem(perfil.id, itemId, entradaItem(formData));
+    else await crearItem(perfil.id, entradaItem(formData));
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+  }
+
+  revalidatePath("/mi-catalogo");
+  revalidatePath(`/p/${perfil.slug}`);
+  redirect("/mi-catalogo");
+}
+
+export async function accionCambiarDisponibilidadItem(itemId: number, activo: boolean) {
+  const perfil = await perfilOFalla();
+  await cambiarDisponibilidadItem(perfil.id, itemId, activo);
+  revalidatePath("/mi-catalogo");
+  revalidatePath(`/p/${perfil.slug}`);
 }

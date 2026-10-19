@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 
 import { BotonEnlace, Encabezado, Insignia, Tarjeta } from "@/components/ui";
-import { categoriasDisponibles, comunasActivas, perfilPublico } from "@/lib/casos/perfil";
+import { arbolDeRubros } from "@/lib/casos/categorias";
+import { perfilPublico } from "@/lib/casos/perfil";
+import { opcionesTerritorio, prefijoTelefonico } from "@/lib/casos/territorio";
 import { requerirPerfil } from "@/lib/sesion";
 
 import { FormularioEdicion } from "./formulario";
@@ -11,10 +13,11 @@ export const dynamic = "force-dynamic";
 
 export default async function PaginaMiPerfil() {
   const sesion = await requerirPerfil("/mi-perfil");
-  const [ficha, comunas, categorias] = await Promise.all([
+  const [ficha, territorio, rubros, prefijo] = await Promise.all([
     perfilPublico(sesion.slug),
-    comunasActivas(),
-    categoriasDisponibles(),
+    opcionesTerritorio(),
+    arbolDeRubros(),
+    prefijoTelefonico(sesion.comunaId),
   ]);
 
   if (!ficha) return null;
@@ -23,7 +26,7 @@ export default async function PaginaMiPerfil() {
     <div className="mx-auto max-w-2xl space-y-6">
       <Encabezado
         titulo="Mi perfil"
-        bajada="Así te ven en el buscador, en el mapa y en el feed."
+        bajada="Así te ven en el buscador, en el mapa y en el feed. Una sola cuenta para buscar y ofrecer."
         acciones={
           <BotonEnlace href={`/p/${ficha.slug}`} variante="secundario" tamano="sm">
             Ver ficha pública
@@ -36,9 +39,7 @@ export default async function PaginaMiPerfil() {
           {ficha.disponibleAhora ? "Disponible ahora" : "No disponible"}
         </Insignia>
         <Insignia tono="contorno">Plan {ficha.plan}</Insignia>
-        <Insignia tono="contorno">
-          {ficha.reputacionConteo} calificación(es)
-        </Insignia>
+        <Insignia tono="contorno">{ficha.reputacionConteo} calificación(es)</Insignia>
         <Insignia tono="contorno">
           {ficha.operacionesCompletadas} operación(es) como proveedor
         </Insignia>
@@ -46,10 +47,12 @@ export default async function PaginaMiPerfil() {
 
       <Tarjeta className="p-5 sm:p-6">
         <FormularioEdicion
-          comunas={comunas}
-          categorias={categorias}
+          territorio={territorio}
+          rubros={rubros}
+          prefijo={prefijo}
           inicial={{
             nombre: ficha.nombre,
+            tipoIdentidad: ficha.tipoIdentidad,
             descripcion: ficha.descripcion,
             rut: ficha.identificadorFiscal,
             telefono: ficha.telefono,
@@ -58,12 +61,13 @@ export default async function PaginaMiPerfil() {
             radioKm: ficha.radioKm,
             roles: ficha.roles,
             categorias: ficha.categorias.map((c) => c.id),
+            otrasActividades: ficha.otrasActividades,
             correoPublico: ficha.correoPublico,
             sitioWeb: ficha.sitioWeb,
             lat: ficha.lat,
             lng: ficha.lng,
           }}
-          coberturaInicial={ficha.cobertura.map((c) => c.id)}
+          coberturaInicial={ficha.cobertura.map((c) => c.id).filter((id) => id !== ficha.comunaId)}
         />
       </Tarjeta>
     </div>

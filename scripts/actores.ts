@@ -354,3 +354,125 @@ export const ACTORES: ActorSemilla[] = [
     disponible: true,
   },
 ];
+
+/**
+ * Perfiles de prueba de las solicitudes de octubre (Álvaro, 08-oct; Paloma,
+ * 18-oct). A diferencia de los anteriores, se crean con los mismos casos de
+ * uso que el registro: si una regla del alta se rompe, el seed falla.
+ */
+export type PerfilPrueba = {
+  slug: string;
+  nombre: string;
+  tipoIdentidad: "persona" | "empresa";
+  comuna: string;
+  roles: ("persona" | "prestador" | "negocio" | "proveedor" | "productor")[];
+  especialidades: string[];
+  otrasActividades?: string[];
+  descripcion?: string;
+  telefono?: string;
+  radioKm?: number;
+  catalogo?: {
+    tipo: "producto" | "servicio";
+    nombre: string;
+    descripcion?: string;
+    precio?: number;
+    unidad?: string;
+    especialidad?: string;
+  }[];
+};
+
+export const PERFILES_PRUEBA: PerfilPrueba[] = [
+  {
+    slug: "ana-rojas-abogada",
+    nombre: "Ana Rojas · Abogada",
+    tipoIdentidad: "persona",
+    comuna: "Providencia",
+    roles: ["persona", "prestador"],
+    especialidades: ["asesoria-legal"],
+    descripcion: "Abogada. Contratos de arriendo y compraventa, temas laborales y herencias.",
+    telefono: "9 6100 2001",
+    catalogo: [
+      { tipo: "servicio", nombre: "Revisión de contrato de arriendo", precio: 35000, unidad: "contrato" },
+      { tipo: "servicio", nombre: "Asesoría laboral", precio: 30000, unidad: "hora" },
+    ],
+  },
+  {
+    slug: "pedro-soto-electricista",
+    nombre: "Pedro Soto · Electricista",
+    tipoIdentidad: "persona",
+    comuna: "Ñuñoa",
+    roles: ["prestador"],
+    especialidades: ["electricidad", "seguridad-electronica"],
+    otrasActividades: ["Instalación de paneles solares"],
+    descripcion: "Electricista autorizado SEC. Reparaciones, tableros y cámaras.",
+    telefono: "9 6100 2002",
+    radioKm: 15,
+    catalogo: [
+      { tipo: "servicio", nombre: "Cambio de enchufes e interruptores", precio: 15000, unidad: "visita" },
+      { tipo: "servicio", nombre: "Instalación de tablero eléctrico", precio: 120000 },
+      { tipo: "servicio", nombre: "Certificación eléctrica TE1", precio: 90000 },
+    ],
+  },
+  {
+    slug: "panaderia-la-espiga",
+    nombre: "Panadería La Espiga",
+    tipoIdentidad: "empresa",
+    comuna: "Macul",
+    roles: ["negocio", "productor"],
+    especialidades: ["panaderia"],
+    descripcion: "Pan amasado y tortas hechas en el local.",
+    telefono: "9 6100 2003",
+    catalogo: [
+      { tipo: "producto", nombre: "Pan amasado", precio: 2600, unidad: "kilo" },
+      { tipo: "producto", nombre: "Torta de mil hojas", precio: 18990, unidad: "unidad" },
+    ],
+  },
+  {
+    slug: "lumen-audiovisual",
+    nombre: "Lumen Audiovisual",
+    tipoIdentidad: "empresa",
+    comuna: "Ñuñoa",
+    roles: ["prestador"],
+    especialidades: ["audiovisual", "fotografia"],
+    descripcion: "Video para marcas y eventos: grabación, edición, dron y transmisión en vivo.",
+    telefono: "9 6100 2004",
+    catalogo: [
+      { tipo: "servicio", nombre: "Video para redes sociales", precio: 180000, unidad: "pieza" },
+      { tipo: "servicio", nombre: "Cobertura de evento con dron", precio: 350000, especialidad: "audiovisual" },
+    ],
+  },
+  {
+    slug: "repuestos-del-sur",
+    nombre: "Repuestos del Sur",
+    tipoIdentidad: "empresa",
+    comuna: "Rancagua",
+    roles: ["negocio", "proveedor"],
+    especialidades: ["repuestos-automotrices"],
+    descripcion: "Repuestos para autos y camionetas. Venta a público y a talleres.",
+    telefono: "9 6100 2005",
+    catalogo: [
+      { tipo: "producto", nombre: "Filtro de aceite", descripcion: "Para Toyota, Hyundai, Kia y Chevrolet.", precio: 6990, unidad: "unidad" },
+      { tipo: "producto", nombre: "Filtro de aire", precio: 8990, unidad: "unidad" },
+      { tipo: "producto", nombre: "Filtro de combustible", precio: 9990, unidad: "unidad" },
+    ],
+  },
+  {
+    slug: "luis-munoz-calefones",
+    nombre: "Luis Muñoz · Técnico en calefones",
+    tipoIdentidad: "persona",
+    comuna: "Puente Alto",
+    roles: ["prestador"],
+    especialidades: ["climatizacion", "gasfiteria"],
+    descripcion: "Mantención e instalación de calefones. Técnico independiente.",
+    telefono: "9 6100 2006",
+    radioKm: 10,
+  },
+  {
+    slug: "camila-torres",
+    nombre: "Camila Torres",
+    tipoIdentidad: "persona",
+    comuna: "Maipú",
+    roles: ["persona"],
+    especialidades: [],
+  },
+];

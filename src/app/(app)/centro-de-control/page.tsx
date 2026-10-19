@@ -8,7 +8,9 @@ import { eventos, perfiles, verificaciones } from "@/db/schema";
 import { fechaHora } from "@/lib/formato";
 import { obtenerSesion, requerirPerfil } from "@/lib/sesion";
 
-import { BotonVerificacion } from "./acciones-cliente";
+import { arbolDeRubros, solicitudesPendientes } from "@/lib/casos/categorias";
+
+import { BotonVerificacion, FormularioSolicitudCategoria } from "./acciones-cliente";
 
 export const metadata: Metadata = { title: "Centro de Control" };
 export const dynamic = "force-dynamic";
@@ -37,6 +39,8 @@ export default async function PaginaCentroDeControl() {
       </div>
     );
   }
+
+  const [solicitudes, rubros] = await Promise.all([solicitudesPendientes(), arbolDeRubros()]);
 
   const [metricas, pendientes, ultimosEventos, ultimosPerfiles] = await Promise.all([
     db.execute<{
@@ -106,6 +110,32 @@ export default async function PaginaCentroDeControl() {
             : `Se registraron ${Number(m.calificaciones)} calificaciones.`}
         </p>
       </Tarjeta>
+
+      <section>
+        <h2 className="titulo-seccion mb-1">Actividades que faltan en la lista</h2>
+        <p className="mb-3 text-xs text-tenue">
+          Lo que la gente escribió en «No encuentro mi actividad». Asígnalo a una especialidad (el
+          perfil aparece en esas búsquedas) o descártalo. Si se repite, es candidato a categoría
+          nueva en scripts/datos.ts.
+        </p>
+        {solicitudes.length ? (
+          <Tarjeta className="divide-y divide-borde">
+            {solicitudes.map(({ solicitud, perfilNombre, perfilSlug }) => (
+              <div key={solicitud.id} className="space-y-2 px-4 py-3">
+                <p className="text-sm text-texto">
+                  «{solicitud.texto}» ·{" "}
+                  <Link href={`/p/${perfilSlug}`} className="text-marca hover:underline">
+                    {perfilNombre}
+                  </Link>
+                </p>
+                <FormularioSolicitudCategoria solicitudId={solicitud.id} rubros={rubros} />
+              </div>
+            ))}
+          </Tarjeta>
+        ) : (
+          <p className="text-sm text-tenue">No hay actividades pendientes.</p>
+        )}
+      </section>
 
       <section>
         <h2 className="titulo-seccion mb-3">Verificaciones pendientes</h2>

@@ -14,11 +14,21 @@ import {
   regiones,
   verificaciones,
   type RolActor,
+  type TipoIdentidad,
 } from "@/db/schema";
 import { distanciaKm } from "@/lib/geo";
+import { normalizarTelefono } from "@/lib/telefono";
 import { slugificar } from "@/lib/utils";
 
+import {
+  actividadesPropias,
+  filtrarEspecialidades,
+  fijarActividadesPropias,
+  solicitarCategoria,
+} from "./categorias";
 import { registrarEvento } from "./eventos";
+import type { DatosPerfilRequisitos } from "./requisitos";
+import { prefijoTelefonico } from "./territorio";
 
 async function slugLibre(base: string) {
   const raiz = slugificar(base) || "perfil";
@@ -38,14 +48,12 @@ async function slugLibre(base: string) {
   return `${raiz}-${Date.now()}`;
 }
 
-/**
- * R1 · Alta e identidad.
- * Una identidad, varios roles: nunca se crean cuentas distintas para el mismo
- * usuario que además vende, produce o presta servicios.
- */
-export async function crearPerfil(entrada: {
-  usuarioId: string;
+/** Roles que ofrecen algo: exigen declarar al menos una actividad. */
+export const ROLES_QUE_OFRECEN: RolActor[] = ["prestador", "negocio", "proveedor", "productor"];
+
+type DatosFicha = {
   nombre: string;
+  tipoIdentidad?: TipoIdentidad;
   roles: RolActor[];
   comunaId?: number | null;
   identificadorFiscal?: string | null;
@@ -53,16 +61,57 @@ export async function crearPerfil(entrada: {
   descripcion?: string | null;
   direccion?: string | null;
   categoriaIds?: number[];
+  /** Actividades que no estaban en la lista («Otro»). */
+  otrasActividades?: string[];
   radioKm?: number | null;
   /** Coordenadas exactas tomadas con la geolocalización del navegador. */
   lat?: number | null;
   lng?: number | null;
-}) {
-  const comuna = entrada.comunaId
-    ? await db.query.comunas.findFirst({ where: eq(comunas.id, entrada.comunaId) })
-    : null;
+};
 
-  const slug = await slugLibre(entrada.nombre);
+/**
+ * Reglas de la ficha, comunes al alta y a la edición. Viven aquí para que el
+ * formulario y un agente se encuentren con las mismas exigencias (S04, S16):
+ * - nombre y comuna son lo único obligatorio para todos;
+ * - quien ofrece algo declara al menos una actividad, de la lista u «Otro»;
+ * - nunca se exige un oficio para vender productos.
+ */
+async function validarFicha(datos: DatosFicha) {
+  const nombre = datos.nombre.trim();
+  if (nombre.length < 2) throw new Error("Escribe el nombre con el que quieres aparecer.");
+  if (!datos.comunaId) {
+    throw new Error(
+      "Elige tu comuna: sirve para mostrarte lo que está cerca y para que te encuentren.",
+    );
+  }
+  const comuna = await db.query.comunas.findFirst({ where: eq(comunas.id, datos.comunaId) });
+  if (!comuna) throw new Error("La comuna elegida no existe.");
+
+  const roles = datos.roles.length ? [...new Set(datos.roles)] : (["persona"] as RolActor[]);
+  const categoriaIds = await filtrarEspecialidades([...new Set(datos.categoriaIds ?? [])]);
+  const otras = (datos.otrasActividades ?? []).map((t) => t.trim()).filter((t) => t.length >= 3);
+
+  if (roles.some((r) => ROLES_QUE_OFRECEN.includes(r)) && !categoriaIds.length && !otras.length) {
+    throw new Error(
+      "Cuéntanos qué ofreces: elige al menos una actividad o descríbela en «No encuentro mi actividad».",
+    );
+  }
+
+  const prefijo = await prefijoTelefonico(comuna.id);
+  const telefono = datos.telefono?.trim() ? normalizarTelefono(prefijo, datos.telefono) : null;
+
+  return { nombre, comuna, roles, categoriaIds, otras, telefono };
+}
+
+/**
+ * R1 · Alta e identidad.
+ * Una identidad, varios roles: nunca se crean cuentas distintas para el mismo
+ * usuario que además vende, produce o presta servicios.
+ */
+export async function crearPerfil(entrada: DatosFicha & { usuarioId: string }) {
+  const { nombre, comuna, roles, categoriaIds, otras, telefono } = await validarFicha(entrada);
+
+  const slug = await slugLibre(nombre);
 
   const perfil = await db.transaction(async (tx) => {
     const [creado] = await tx
@@ -70,31 +119,31 @@ export async function crearPerfil(entrada: {
       .values({
         usuarioId: entrada.usuarioId,
         slug,
-        nombre: entrada.nombre.trim(),
+        nombre,
+        tipoIdentidad: entrada.tipoIdentidad ?? "persona",
         descripcion: entrada.descripcion?.trim() || null,
         identificadorFiscal: entrada.identificadorFiscal?.trim() || null,
-        telefono: entrada.telefono?.trim() || null,
+        telefono,
         direccion: entrada.direccion?.trim() || null,
-        comunaId: entrada.comunaId ?? null,
+        comunaId: comuna.id,
         // Si el usuario compartió su ubicación real, esa manda. Si no, se
         // parte del centro de la comuna y puede ajustarse después.
-        lat: entrada.lat ?? comuna?.lat ?? null,
-        lng: entrada.lng ?? comuna?.lng ?? null,
+        lat: entrada.lat ?? comuna.lat,
+        lng: entrada.lng ?? comuna.lng,
         radioKm: entrada.radioKm ?? null,
       })
       .returning();
 
-    const roles = entrada.roles.length ? entrada.roles : (["persona"] as RolActor[]);
     await tx
       .insert(perfilRoles)
       .values(roles.map((rol) => ({ perfilId: creado.id, rol })))
       .onConflictDoNothing();
 
-    if (entrada.categoriaIds?.length) {
+    if (categoriaIds.length) {
       await tx
         .insert(perfilCategorias)
         .values(
-          entrada.categoriaIds.map((categoriaId, i) => ({
+          categoriaIds.map((categoriaId, i) => ({
             perfilId: creado.id,
             categoriaId,
             principal: i === 0,
@@ -103,31 +152,93 @@ export async function crearPerfil(entrada: {
         .onConflictDoNothing();
     }
 
-    if (entrada.comunaId) {
-      await tx
-        .insert(coberturas)
-        .values({ perfilId: creado.id, comunaId: entrada.comunaId })
-        .onConflictDoNothing();
-    }
+    await tx
+      .insert(coberturas)
+      .values({ perfilId: creado.id, comunaId: comuna.id })
+      .onConflictDoNothing();
 
     return creado;
   });
+
+  for (const texto of otras) await solicitarCategoria({ perfilId: perfil.id, texto });
 
   await registrarEvento({
     tipo: "perfil.creado",
     entidad: "perfil",
     entidadId: perfil.id,
     actorPerfilId: perfil.id,
-    datos: { roles: entrada.roles },
+    datos: { roles, categorias: categoriaIds, otrasActividades: otras },
   });
 
   return perfil;
+}
+
+/**
+ * Edición completa de la ficha (P03): mismas reglas que el alta. Datos
+ * comerciales, roles, actividades y cobertura se guardan juntos.
+ */
+export async function guardarFicha(
+  perfilId: number,
+  datos: DatosFicha & {
+    correoPublico?: string | null;
+    sitioWeb?: string | null;
+    coberturaIds?: number[];
+  },
+) {
+  const { nombre, comuna, roles, categoriaIds, otras, telefono } = await validarFicha(datos);
+
+  await actualizarPerfil(perfilId, {
+    nombre,
+    tipoIdentidad: datos.tipoIdentidad,
+    descripcion: datos.descripcion?.trim() || null,
+    telefono,
+    correoPublico: datos.correoPublico?.trim() || null,
+    sitioWeb: datos.sitioWeb?.trim() || null,
+    direccion: datos.direccion?.trim() || null,
+    identificadorFiscal: datos.identificadorFiscal?.trim() || null,
+    comunaId: comuna.id,
+    radioKm: datos.radioKm ?? null,
+    lat: datos.lat ?? null,
+    lng: datos.lng ?? null,
+  });
+  await fijarRoles(perfilId, roles);
+  await fijarCategorias(perfilId, categoriaIds);
+  await fijarActividadesPropias(perfilId, otras);
+  await fijarCoberturas(perfilId, [...new Set([comuna.id, ...(datos.coberturaIds ?? [])])]);
+}
+
+/** Completa un solo dato que una acción pidió en el momento (S05). */
+export async function completarTelefono(perfilId: number, telefono: string) {
+  const perfil = await db.query.perfiles.findFirst({ where: eq(perfiles.id, perfilId) });
+  if (!perfil) throw new Error("No encontramos tu perfil.");
+  const normalizado = normalizarTelefono(await prefijoTelefonico(perfil.comunaId), telefono);
+  if (!normalizado) throw new Error("Escribe tu teléfono.");
+  await actualizarPerfil(perfilId, { telefono: normalizado });
+}
+
+/** Lo que miran los requisitos por acción. */
+export async function datosParaRequisitos(perfilId: number): Promise<DatosPerfilRequisitos> {
+  const [perfil, cats, propias] = await Promise.all([
+    db.query.perfiles.findFirst({ where: eq(perfiles.id, perfilId) }),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(perfilCategorias)
+      .where(eq(perfilCategorias.perfilId, perfilId)),
+    actividadesPropias(perfilId),
+  ]);
+  return {
+    comunaId: perfil?.comunaId ?? null,
+    telefono: perfil?.telefono ?? null,
+    identificadorFiscal: perfil?.identificadorFiscal ?? null,
+    actividades: Number(cats[0]?.total ?? 0) + propias.length,
+  };
 }
 
 export async function actualizarPerfil(
   perfilId: number,
   cambios: Partial<{
     nombre: string;
+    tipoIdentidad: TipoIdentidad;
     descripcion: string | null;
     telefono: string | null;
     correoPublico: string | null;
@@ -143,16 +254,23 @@ export async function actualizarPerfil(
 ) {
   const { lat, lng, ...resto } = cambios;
   const valores: Record<string, unknown> = { ...resto, actualizadoEn: new Date() };
+  for (const clave of Object.keys(valores)) {
+    if (valores[clave] === undefined) delete valores[clave];
+  }
 
   if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
     // La ubicación real que trae el usuario manda sobre el centroide de la comuna.
     valores.lat = lat;
     valores.lng = lng;
   } else if (cambios.comunaId) {
-    const comuna = await db.query.comunas.findFirst({ where: eq(comunas.id, cambios.comunaId) });
-    if (comuna) {
-      valores.lat = comuna.lat;
-      valores.lng = comuna.lng;
+    const actual = await db.query.perfiles.findFirst({ where: eq(perfiles.id, perfilId) });
+    // Solo se recentra si cambió de comuna: no se pisa un punto exacto ya fijado.
+    if (actual?.comunaId !== cambios.comunaId) {
+      const comuna = await db.query.comunas.findFirst({ where: eq(comunas.id, cambios.comunaId) });
+      if (comuna) {
+        valores.lat = comuna.lat;
+        valores.lng = comuna.lng;
+      }
     }
   }
 
@@ -180,7 +298,8 @@ export async function fijarRoles(perfilId: number, roles: RolActor[]) {
   });
 }
 
-export async function fijarCategorias(perfilId: number, categoriaIds: number[]) {
+export async function fijarCategorias(perfilId: number, ids: number[]) {
+  const categoriaIds = await filtrarEspecialidades([...new Set(ids)]);
   await db.transaction(async (tx) => {
     await tx.delete(perfilCategorias).where(eq(perfilCategorias.perfilId, perfilId));
     if (categoriaIds.length) {
@@ -246,7 +365,7 @@ export async function perfilPublico(slug: string) {
 
   const perfilId = fila.perfil.id;
 
-  const [roles, cats, cobertura, verificado, catalogo, resenas, trabajos] = await Promise.all([
+  const [roles, cats, cobertura, verificado, catalogo, resenas, trabajos, propias] = await Promise.all([
     db
       .select({ rol: perfilRoles.rol })
       .from(perfilRoles)
@@ -285,6 +404,7 @@ export async function perfilPublico(slug: string) {
       .select({ total: sql<number>`count(*)` })
       .from(operaciones)
       .where(eq(operaciones.proveedorPerfilId, perfilId)),
+    actividadesPropias(perfilId),
   ]);
 
   return {
@@ -298,6 +418,7 @@ export async function perfilPublico(slug: string) {
     catalogo,
     resenas,
     operacionesCompletadas: Number(trabajos[0]?.total ?? 0),
+    otrasActividades: propias.map((p) => p.texto),
   };
 }
 

@@ -10,9 +10,15 @@ export default function PaginaRegistro() {
     <div className="tarjeta p-6 sm:p-8">
       <h1 className="text-xl font-semibold text-texto">Crea tu cuenta</h1>
       <p className="mt-1 text-sm text-tenue">
-        Una sola identidad. Después eliges los roles que necesites: persona, prestador,
-        negocio, proveedor o productor.
+        Con una sola cuenta puedes buscar lo que necesitas y, si quieres, ofrecer tus servicios
+        o productos. Primero tu correo y una contraseña; después, dos o tres preguntas cortas.
       </p>
+
+      <ol className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] text-tenue">
+        <li className="rounded-lg bg-marca/10 px-2 py-1.5 font-medium text-marca">1 · Cuenta</li>
+        <li className="rounded-lg bg-superficie2 px-2 py-1.5">2 · Tu perfil</li>
+        <li className="rounded-lg bg-superficie2 px-2 py-1.5">3 · ¡Listo!</li>
+      </ol>
 
       <div className="mt-6">
         <FormularioRegistro />
@@ -22,6 +28,10 @@ export default function PaginaRegistro() {
         ¿Ya tienes cuenta?{" "}
         <Link href="/ingresar" className="font-medium text-marca hover:underline">
           Ingresa
+        </Link>
+        {" · "}
+        <Link href="/explorar" className="font-medium text-marca hover:underline">
+          Explorar sin cuenta
         </Link>
       </p>
     </div>

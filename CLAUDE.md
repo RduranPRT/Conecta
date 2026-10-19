@@ -57,6 +57,17 @@ npm run db:generate      # genera el SQL en drizzle/
 npm run db:migrate       # lo aplica
 ```
 
+Territorio (16 regiones, 346 comunas con código CUT en `scripts/territorio-cl.ts`)
+y taxonomía (rubros → especialidades en `scripts/datos.ts`) los carga
+`npm run db:catalogos`. Es idempotente, no toca datos de usuarios y corre en cada
+despliegue después de las migraciones (`railway.json`). Para agregar una
+categoría, edita `scripts/datos.ts`; no la insertes a mano. Una especialidad
+tiene una sola fila aunque se descubra desde varios rubros (`tambienEn`).
+
+Lo que una acción exige del perfil (teléfono para proponer, comuna para
+publicar…) vive en `src/lib/casos/requisitos.ts`. El registro pide lo mínimo; no
+agregues campos obligatorios al alta sin pasar por ahí.
+
 Nunca edites a mano una migración ya aplicada. `src/db/auth-schema.ts` lo fija
 Better Auth: si actualizas la librería, regenera con `npx @better-auth/cli generate`
 y revisa columnas nuevas (la 1.7 agregó `account.issuer`).

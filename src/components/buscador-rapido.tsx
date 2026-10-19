@@ -2,13 +2,15 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const EJEMPLOS = [
   "Necesito un gasfíter que pueda venir hoy cerca de mí",
   "Busco proveedor de harina para mi panadería",
   "Mecánico disponible hoy",
   "200 cajas de tomates",
+  "Abogado para revisar un contrato",
+  "Filtro de aceite para mi auto",
 ];
 
 /**
@@ -25,8 +27,14 @@ export function BuscadorRapido({
 }) {
   const router = useRouter();
   const parametros = useSearchParams();
-  const [valor, setValor] = useState(valorInicial);
-  const [ejemplo] = useState(() => EJEMPLOS[Math.floor(Math.random() * EJEMPLOS.length)]);
+  // En Buscar, la caja del encabezado muestra la consulta en curso.
+  const [valor, setValor] = useState(valorInicial || parametros.get("q") || "");
+  // El ejemplo se sortea en el navegador: si se sorteara al renderizar, el
+  // servidor y el cliente mostrarían frases distintas (error de hidratación).
+  const [ejemplo, setEjemplo] = useState(EJEMPLOS[0]);
+  useEffect(() => {
+    setEjemplo(EJEMPLOS[Math.floor(Math.random() * EJEMPLOS.length)]);
+  }, []);
 
   function enviar(consulta: string) {
     const q = consulta.trim();

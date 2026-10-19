@@ -5,6 +5,7 @@ import {
   categorias,
   coberturas,
   comunas,
+  items,
   perfilCategorias,
   perfilRoles,
   perfiles,
@@ -13,6 +14,7 @@ import {
   type RolActor,
 } from "@/db/schema";
 import { distanciaKm } from "@/lib/geo";
+import { idsQueCubre } from "./categorias";
 import { puntuar } from "./puntaje";
 import type { Intencion } from "@/lib/ia";
 
@@ -99,8 +101,10 @@ export async function buscarActores(
   }
 
   // Categoría y texto se combinan con OR: la categoría acota, el texto rescata.
+  // Un rubro cubre todas sus especialidades, propias y secundarias.
+  const idsCategoria = intencion.categoriaId ? await idsQueCubre(intencion.categoriaId) : [];
   const alternativas: SQL[] = [];
-  if (intencion.categoriaId) {
+  if (idsCategoria.length) {
     alternativas.push(
       exists(
         db
@@ -109,7 +113,7 @@ export async function buscarActores(
           .where(
             and(
               eq(perfilCategorias.perfilId, perfiles.id),
-              eq(perfilCategorias.categoriaId, intencion.categoriaId),
+              inArray(perfilCategorias.categoriaId, idsCategoria),
             ),
           ),
       ),
@@ -125,7 +129,31 @@ export async function buscarActores(
           .select({ x: sql`1` })
           .from(perfilCategorias)
           .innerJoin(categorias, eq(categorias.id, perfilCategorias.categoriaId))
-          .where(and(eq(perfilCategorias.perfilId, perfiles.id), ilike(categorias.nombre, patron))),
+          .where(
+            and(
+              eq(perfilCategorias.perfilId, perfiles.id),
+              or(
+                ilike(categorias.nombre, patron),
+                ilike(sql`coalesce(${categorias.oficio}, '')`, patron),
+              ),
+            ),
+          ),
+      ),
+    );
+    // Lo que vende o presta un perfil también lo hace encontrable:
+    // «filtro de aceite» llega a la tienda que lo tiene en su catálogo.
+    alternativas.push(
+      exists(
+        db
+          .select({ x: sql`1` })
+          .from(items)
+          .where(
+            and(
+              eq(items.perfilId, perfiles.id),
+              eq(items.activo, true),
+              or(ilike(items.nombre, patron), ilike(sql`coalesce(${items.descripcion}, '')`, patron)),
+            ),
+          ),
       ),
     );
   }
@@ -213,8 +241,8 @@ export async function buscarActores(
     const { puntaje, motivo } = puntuar({
       distancia,
       pideCategoria: Boolean(intencion.categoriaId),
-      categoriaCoincide: intencion.categoriaId
-        ? cats.some((c) => c.id === intencion.categoriaId)
+      categoriaCoincide: idsCategoria.length
+        ? cats.some((c) => idsCategoria.includes(c.id))
         : false,
       terminoCoincide: intencion.terminos.some(
         (t) =>

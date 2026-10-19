@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BadgeCheck, MapPin } from "lucide-react";
 
 import { Avatar, BotonEnlace, Estrellas, Insignia } from "@/components/ui";
+import { rolesVisibles } from "@/lib/formato";
 import type { ActorResumen } from "@/lib/casos/actores";
 import { formatearDistancia } from "@/lib/geo";
 
@@ -43,7 +44,7 @@ export function TarjetaActor({
         </div>
 
         <p className="mt-0.5 text-xs text-tenue">
-          {actor.roles.map((r) => ETIQUETA_ROL[r] ?? r).join(" · ") || "Perfil"}
+          {rolesVisibles(actor.roles).map((r) => ETIQUETA_ROL[r] ?? r).join(" · ") || "Perfil"}
         </p>
 
         {actor.descripcion ? (

@@ -14,6 +14,8 @@ import {
 } from "@/db/schema";
 
 import { registrarEvento } from "./eventos";
+import { datosParaRequisitos } from "./perfil";
+import { exigirRequisitos } from "./requisitos";
 
 /**
  * R4 · Cotizar.
@@ -40,6 +42,7 @@ export async function enviarPropuesta(entrada: {
   }
   if (entrada.monto <= 0) throw new Error("El monto debe ser mayor que cero.");
   if (entrada.plazoDias <= 0) throw new Error("El plazo debe ser de al menos un día.");
+  exigirRequisitos("enviar_propuesta", await datosParaRequisitos(entrada.perfilId));
 
   const propuesta = await db.transaction(async (tx) => {
     const [fila] = await tx

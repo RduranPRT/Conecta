@@ -43,6 +43,17 @@ const MARCAS_PRODUCTO = ["comprar","kilos","cajas","unidades","stock","docena","
 const MARCAS_SERVICIO = ["reparar","arreglar","instalar","servicio","mantencion","asesoria","limpieza","pintar"];
 
 /**
+ * ¿Aparece la frase como palabras completas? Evita que «pintor» active la
+ * comuna de Pinto o que «pelota» active Lota: con 346 comunas, comparar
+ * subcadenas produce falsos positivos.
+ */
+function contieneFrase(texto: string, frase: string) {
+  if (!frase) return false;
+  const escapada = frase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9ñ])${escapada}($|[^a-z0-9ñ])`).test(texto);
+}
+
+/**
  * Intérprete determinista. Es la implementación por defecto: no cuesta, no
  * falla y explica lo que hizo. El adaptador de modelo (ia/modelo.ts) produce
  * exactamente esta misma estructura cuando hay ANTHROPIC_API_KEY.
@@ -58,7 +69,7 @@ export function interpretarConReglas(
   // 1 · Comuna nombrada explícitamente («en Puente Alto»).
   const comuna = contexto.comunas
     .map((c) => ({ ...c, n: normalizar(c.nombre) }))
-    .filter((c) => texto.includes(c.n))
+    .filter((c) => contieneFrase(texto, c.n))
     .sort((a, b) => b.n.length - a.n.length)[0];
 
   if (comuna) {
@@ -123,11 +134,11 @@ export function interpretarConReglas(
     for (const candidato of candidatos) {
       const c = normalizar(candidato);
       if (!c) continue;
-      const coincide = texto.includes(c) || palabras.includes(c);
+      const coincide = contieneFrase(texto, c);
       if (coincide) {
         const puntaje =
           c.length +
-          (encabezado.includes(c) ? 10 : 0) +
+          (contieneFrase(encabezado, c) ? 10 : 0) +
           (categoria.tipo === intencion.tipo ? 2 : 0);
         if (!mejor || puntaje > mejor.puntaje) {
           mejor = { id: categoria.id, nombre: categoria.nombre, puntaje };

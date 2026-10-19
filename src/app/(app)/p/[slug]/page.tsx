@@ -6,7 +6,8 @@ import { TarjetaPublicacion } from "@/components/tarjeta-publicacion";
 import { Avatar, BotonEnlace, Encabezado, Estrellas, Insignia, Tarjeta } from "@/components/ui";
 import { publicacionesDe } from "@/lib/casos/feed";
 import { perfilPublico } from "@/lib/casos/perfil";
-import { fecha, monto } from "@/lib/formato";
+import { fecha, monto, rolesVisibles } from "@/lib/formato";
+import { formatearTelefono } from "@/lib/telefono";
 import { obtenerPerfil } from "@/lib/sesion";
 
 import { FormularioContacto } from "./contacto";
@@ -58,7 +59,8 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
             </div>
 
             <p className="mt-1 text-sm text-tenue">
-              {ficha.roles.map((r) => ETIQUETA_ROL[r] ?? r).join(" · ")}
+              {ficha.tipoIdentidad === "empresa" ? "Empresa · " : ""}
+              {rolesVisibles(ficha.roles).map((r) => ETIQUETA_ROL[r] ?? r).join(" · ")}
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-tenue">
@@ -72,7 +74,7 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
               {ficha.telefono ? (
                 <span className="inline-flex items-center gap-1">
                   <Phone size={12} />
-                  {ficha.telefono}
+                  {formatearTelefono(ficha.telefono)}
                 </span>
               ) : null}
               {ficha.sitioWeb ? (
@@ -98,6 +100,11 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
               {ficha.categorias.map((c) => (
                 <Insignia key={c.id} tono="marca">
                   {c.nombre}
+                </Insignia>
+              ))}
+              {ficha.otrasActividades.map((texto) => (
+                <Insignia key={texto} tono="contorno">
+                  {texto}
                 </Insignia>
               ))}
             </div>
@@ -139,7 +146,18 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
             {ficha.catalogo.map((item) => (
               <Tarjeta key={item.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  {item.imagenUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.imagenUrl}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-lg border border-borde object-cover"
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] uppercase tracking-wide text-tenue">
+                      {item.tipo === "servicio" ? "Servicio" : "Producto"}
+                    </p>
                     <p className="text-sm font-medium text-texto">{item.nombre}</p>
                     {item.descripcion ? (
                       <p className="mt-1 text-xs text-tenue">{item.descripcion}</p>

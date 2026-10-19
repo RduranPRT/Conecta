@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { MapPin, Search, SlidersHorizontal } from "lucide-react";
 
 import { GeolocalizarMapa } from "@/components/geolocalizar-mapa";
 import { Mapa, type PuntoMapa } from "@/components/mapa";
+import { SelectorComuna } from "@/components/selector-comuna";
+import { SelectCategoria } from "@/components/selector-especialidades";
 import { TarjetaActor } from "@/components/tarjeta-actor";
 import { Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { db } from "@/db";
 import { comunas } from "@/db/schema";
 import { buscarActores } from "@/lib/casos/actores";
-import { categoriasDisponibles, comunaMasCercana, comunasActivas } from "@/lib/casos/perfil";
+import { arbolDeRubros } from "@/lib/casos/categorias";
+import { comunaMasCercana } from "@/lib/casos/perfil";
+import { comunaPiloto, opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
 import { contextoInterprete, interpretar } from "@/lib/ia";
 import { obtenerPerfil } from "@/lib/sesion";
@@ -42,9 +46,10 @@ export default async function PaginaMapa({
   const { rol = "todos", comuna, categoria, lat: latParam, lng: lngParam, q = "" } = await searchParams;
   const perfil = await obtenerPerfil();
 
-  const [listaComunas, listaCategorias] = await Promise.all([
-    comunasActivas(),
-    categoriasDisponibles(),
+  const [territorio, rubros, piloto] = await Promise.all([
+    opcionesTerritorio(),
+    arbolDeRubros(),
+    comunaPiloto(),
   ]);
 
   const geoLat = latParam ? Number(latParam) : null;
@@ -62,9 +67,9 @@ export default async function PaginaMapa({
     Number(comuna) ||
     comunaGeolocalizada?.id ||
     perfil?.comunaId ||
-    listaComunas.find((c) => c.activa)?.id ||
-    listaComunas[0]?.id ||
+    piloto?.id ||
     null;
+  const ubicacion = await ubicacionDeComuna(comunaId);
 
   // "Buscar en esta zona": el texto pasa por el mismo intérprete que el
   // buscador general, pero la zona la fija el mapa, no la frase.
@@ -133,6 +138,14 @@ export default async function PaginaMapa({
 
       <GeolocalizarMapa activo={activarGeolocalizacion} />
 
+      {ubicacion ? (
+        <p className="-mt-2 inline-flex items-center gap-1 text-xs text-tenue">
+          <MapPin size={12} className="text-marca" />
+          Estás viendo {ubicacion.nombre}, {ubicacion.regionNombre}. Cámbiala con el botón de
+          filtros.
+        </p>
+      ) : null}
+
       <div className="flex items-start gap-2">
         <form action="/mapa" role="search" className="relative flex-1">
           <Search
@@ -171,37 +184,26 @@ export default async function PaginaMapa({
           >
             {rol !== "todos" ? <input type="hidden" name="rol" value={rol} /> : null}
             {q ? <input type="hidden" name="q" value={q} /> : null}
-            <label className="text-xs text-tenue" htmlFor="filtro-comuna">
-              Comuna
-            </label>
-            <select
-              id="filtro-comuna"
-              name="comuna"
-              defaultValue={comunaId ?? ""}
-              className="campo h-9 py-1 text-xs"
-            >
-              {listaComunas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+            <SelectorComuna
+              territorio={territorio}
+              nombre="comuna"
+              inicial={comunaId}
+              compacto
+              idBase="filtro-mapa"
+              etiquetaVacia="Elige una comuna"
+            />
             <label className="text-xs text-tenue" htmlFor="filtro-categoria">
-              Categoría
+              Qué buscas
             </label>
-            <select
+            <SelectCategoria
+              rubros={rubros}
+              nombre="categoria"
               id="filtro-categoria"
-              name="categoria"
-              defaultValue={categoria ?? ""}
+              inicial={categoria}
+              vacia="Todo"
+              incluirRubros
               className="campo h-9 py-1 text-xs"
-            >
-              <option value="">Todas las categorías</option>
-              {listaCategorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+            />
             <button
               type="submit"
               className="mt-1 h-9 rounded-lg bg-marca px-3 text-xs font-medium text-white transition hover:bg-marca-fuerte"
@@ -263,7 +265,7 @@ export default async function PaginaMapa({
           <h2 className="titulo-seccion">En el mapa ahora</h2>
           <Insignia tono="contorno">{actores.length} actores</Insignia>
         </div>
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {actores.slice(0, 12).map((actor) => (
             <TarjetaActor key={actor.id} actor={actor} />
           ))}

@@ -15,17 +15,12 @@ import { db } from "../src/db";
 import {
   account,
   EMISOR_CREDENCIAL,
-  agentes,
-  categorias,
   coberturas,
-  comunas,
   items,
-  paises,
   perfilCategorias,
   perfilRoles,
   perfiles,
   publicaciones,
-  regiones,
   user,
   verificaciones,
 } from "../src/db/schema";
@@ -37,14 +32,43 @@ import {
   registrarEntrega,
 } from "../src/lib/casos/propuestas";
 
-import { ACTORES, CLAVE_DEMO } from "./actores";
-import { AGENTES, CATEGORIAS, COMUNAS, REGIONES } from "./datos";
+import { crearItem } from "../src/lib/casos/catalogo";
+import { crearPerfil } from "../src/lib/casos/perfil";
+import { normalizarTelefono } from "../src/lib/telefono";
+
+import { ACTORES, CLAVE_DEMO, PERFILES_PRUEBA } from "./actores";
+import { cargarCatalogos } from "./catalogos";
 
 const paso = (texto: string) => console.log(`· ${texto}`);
 
 /** Dispersa los puntos alrededor del centro de la comuna: el mapa se ve real. */
 function jitter(base: number, escala = 0.014) {
   return base + (Math.random() - 0.5) * escala;
+}
+
+/** Cuenta con correo y contraseña de demostración, como la crea Better Auth. */
+async function crearCuenta(slug: string, nombre: string, claveHash: string) {
+  const ahora = new Date();
+  const usuarioId = randomUUID();
+  await db.insert(user).values({
+    id: usuarioId,
+    name: nombre,
+    email: `${slug}@conecta.demo`,
+    emailVerified: true,
+    createdAt: ahora,
+    updatedAt: ahora,
+  });
+  await db.insert(account).values({
+    id: randomUUID(),
+    issuer: EMISOR_CREDENCIAL,
+    accountId: usuarioId,
+    providerId: "credential",
+    userId: usuarioId,
+    password: claveHash,
+    createdAt: ahora,
+    updatedAt: ahora,
+  });
+  return usuarioId;
 }
 
 async function main() {
@@ -54,78 +78,14 @@ async function main() {
     process.exit(0);
   }
 
-  /* 1 · Territorio */
-  const [chile] = await db
-    .insert(paises)
-    .values({ codigo: "CL", nombre: "Chile", moneda: "CLP", prefijoTelefono: "+56" })
-    .onConflictDoUpdate({ target: paises.codigo, set: { nombre: "Chile" } })
-    .returning();
-
-  const idRegion = new Map<string, number>();
-  for (const region of REGIONES) {
-    const [fila] = await db
-      .insert(regiones)
-      .values({ paisId: chile.id, ...region })
-      .onConflictDoUpdate({
-        target: [regiones.paisId, regiones.codigo],
-        set: { nombre: region.nombre },
-      })
-      .returning();
-    idRegion.set(region.codigo, fila.id);
-  }
-
-  const idComuna = new Map<string, number>();
-  const puntoComuna = new Map<string, { lat: number; lng: number }>();
-  for (const comuna of COMUNAS) {
-    const [fila] = await db
-      .insert(comunas)
-      .values({
-        regionId: idRegion.get(comuna.region)!,
-        codigo: comuna.codigo,
-        nombre: comuna.nombre,
-        lat: comuna.lat,
-        lng: comuna.lng,
-        activa: comuna.activa ?? false,
-      })
-      .onConflictDoUpdate({
-        target: [comunas.regionId, comunas.codigo],
-        set: { nombre: comuna.nombre, activa: comuna.activa ?? false },
-      })
-      .returning();
-    idComuna.set(comuna.nombre, fila.id);
-    puntoComuna.set(comuna.nombre, { lat: comuna.lat, lng: comuna.lng });
-  }
-  paso(`territorio: ${REGIONES.length} regiones, ${COMUNAS.length} comunas`);
-
-  /* 2 · Taxonomía */
-  const idCategoria = new Map<string, number>();
-  for (const [i, categoria] of CATEGORIAS.entries()) {
-    const [fila] = await db
-      .insert(categorias)
-      .values({ ...categoria, orden: i })
-      .onConflictDoUpdate({
-        target: categorias.slug,
-        set: { nombre: categoria.nombre, sinonimos: categoria.sinonimos },
-      })
-      .returning();
-    idCategoria.set(categoria.slug, fila.id);
-  }
-  paso(`taxonomía: ${CATEGORIAS.length} categorías`);
-
-  /* 3 · Catálogo de agentes */
-  for (const agente of AGENTES) {
-    await db
-      .insert(agentes)
-      .values(agente)
-      .onConflictDoUpdate({ target: agentes.codigo, set: { nombre: agente.nombre } });
-  }
-  paso(`agentes: ${AGENTES.length} en catálogo`);
+  /* 1-3 · Territorio, taxonomía y agentes */
+  const { idComuna, puntoComuna, idCategoria } = await cargarCatalogos();
 
   /* 4 · Identidades con cuenta real */
   const clave = await hashPassword(CLAVE_DEMO);
   const idPerfil = new Map<string, number>();
 
-  for (const actor of ACTORES) {
+  for (const [i, actor] of ACTORES.entries()) {
     const ahora = new Date();
     const usuarioId = randomUUID();
     const correo = `${actor.slug}@conecta.demo`;
@@ -161,7 +121,8 @@ async function main() {
         identificadorFiscal: `7${Math.floor(1000000 + Math.random() * 8999999)}-${Math.floor(
           Math.random() * 9,
         )}`,
-        telefono: actor.telefono ?? null,
+        // Todos con teléfono: enviar una propuesta lo exige (requisitos por acción).
+        telefono: normalizarTelefono("+56", actor.telefono ?? `9 5555 ${2000 + i}`),
         correoPublico: correo,
         comunaId: idComuna.get(actor.comuna)!,
         lat: jitter(centro.lat),
@@ -225,6 +186,31 @@ async function main() {
     }
   }
   paso(`identidades: ${ACTORES.length} perfiles con cuenta (clave: ${CLAVE_DEMO})`);
+
+  /* 4b · Perfiles de prueba de octubre, con el mismo alta que la interfaz */
+  for (const prueba of PERFILES_PRUEBA) {
+    const usuarioId = await crearCuenta(prueba.slug, prueba.nombre, clave);
+    const perfil = await crearPerfil({
+      usuarioId,
+      nombre: prueba.nombre,
+      tipoIdentidad: prueba.tipoIdentidad,
+      roles: prueba.roles,
+      comunaId: idComuna.get(prueba.comuna)!,
+      categoriaIds: prueba.especialidades.map((slug) => idCategoria.get(slug)!),
+      otrasActividades: prueba.otrasActividades,
+      descripcion: prueba.descripcion,
+      telefono: prueba.telefono,
+      radioKm: prueba.radioKm,
+    });
+    idPerfil.set(prueba.slug, perfil.id);
+    for (const item of prueba.catalogo ?? []) {
+      await crearItem(perfil.id, {
+        ...item,
+        categoriaId: idCategoria.get(item.especialidad ?? prueba.especialidades[0] ?? "") ?? null,
+      });
+    }
+  }
+  paso(`perfiles de prueba: ${PERFILES_PRUEBA.length} creados con los casos de uso`);
 
   /* 5 · Dos verificaciones pendientes, para que el Centro de Control tenga cola */
   await db

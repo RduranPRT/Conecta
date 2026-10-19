@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -15,7 +15,9 @@ import { contextoInterprete, interpretar, type Intencion } from "@/lib/ia";
 import { intencionVacia } from "@/lib/ia/tipos";
 
 import { buscarActores, type ActorResumen } from "./actores";
+import { idsQueCubre } from "./categorias";
 import { registrarEvento } from "./eventos";
+import { exigirRequisitos } from "./requisitos";
 
 export type EntradaNecesidad = {
   solicitantePerfilId: number;
@@ -51,6 +53,12 @@ export async function publicarNecesidad(entrada: EntradaNecesidad) {
   );
 
   const comunaId = entrada.comunaId ?? intencion.comunaId ?? solicitante.comunaId ?? null;
+  exigirRequisitos("publicar_necesidad", {
+    comunaId,
+    telefono: solicitante.telefono,
+    identificadorFiscal: solicitante.identificadorFiscal,
+    actividades: 0,
+  });
   const categoriaId = entrada.categoriaId ?? intencion.categoriaId ?? null;
   const urgencia =
     entrada.urgencia ?? (intencion.disponibilidad === "hoy" ? "hoy" : "flexible");
@@ -294,5 +302,39 @@ export async function oportunidadesDe(perfilId: number, limite = 20) {
     .leftJoin(categorias, eq(categorias.id, necesidades.categoriaId))
     .where(and(eq(invitaciones.perfilId, perfilId), inArray(necesidades.estado, ["publicada", "en_cotizacion"])))
     .orderBy(desc(invitaciones.creadoEn))
+    .limit(limite);
+}
+
+/**
+ * Necesidades abiertas que calzan con una búsqueda: por texto o, si no hay
+ * texto, por la categoría (un rubro cubre sus especialidades).
+ */
+export async function buscarNecesidadesAbiertas(intencion: Intencion, limite = 6) {
+  const patrones = intencion.terminos.slice(0, 3).map((t) => `%${t}%`);
+  const idsCategoria = intencion.categoriaId ? await idsQueCubre(intencion.categoriaId) : [];
+  if (!patrones.length && !idsCategoria.length) return [];
+
+  return db
+    .select({
+      necesidad: necesidades,
+      solicitanteNombre: perfiles.nombre,
+      comunaNombre: comunas.nombre,
+    })
+    .from(necesidades)
+    .innerJoin(perfiles, eq(perfiles.id, necesidades.solicitantePerfilId))
+    .leftJoin(comunas, eq(comunas.id, necesidades.comunaId))
+    .where(
+      and(
+        inArray(necesidades.estado, ["publicada", "en_cotizacion"]),
+        or(
+          ...patrones.flatMap((p) => [
+            ilike(necesidades.titulo, p),
+            ilike(necesidades.descripcion, p),
+          ]),
+          idsCategoria.length ? inArray(necesidades.categoriaId, idsCategoria) : undefined,
+        ),
+      ),
+    )
+    .orderBy(desc(necesidades.creadoEn))
     .limit(limite);
 }

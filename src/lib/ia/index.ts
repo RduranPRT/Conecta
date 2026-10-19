@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categorias, comunas } from "@/db/schema";
@@ -20,6 +20,7 @@ export const contextoInterprete = cache(async (comunaUsuarioId?: number | null) 
         slug: categorias.slug,
         nombre: categorias.nombre,
         tipo: categorias.tipo,
+        oficio: categorias.oficio,
         sinonimos: categorias.sinonimos,
       })
       .from(categorias)
@@ -27,12 +28,15 @@ export const contextoInterprete = cache(async (comunaUsuarioId?: number | null) 
     db
       .select({ id: comunas.id, nombre: comunas.nombre })
       .from(comunas)
-      .where(eq(comunas.activa, true))
       .orderBy(asc(comunas.nombre)),
   ]);
 
   return {
-    categorias: cats.map((c) => ({ ...c, sinonimos: c.sinonimos ?? [] })),
+    // El oficio es un sinónimo más: «electricista» lleva a Electricidad.
+    categorias: cats.map(({ oficio, ...c }) => ({
+      ...c,
+      sinonimos: [...(c.sinonimos ?? []), ...(oficio ? [oficio] : [])],
+    })),
     comunas: coms,
     comunaUsuarioId: comunaUsuarioId ?? null,
   } satisfies ContextoInterprete;

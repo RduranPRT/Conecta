@@ -79,6 +79,20 @@ const TONO_TIPO: Record<string, "marca" | "acento" | "neutro" | "exito"> = {
   novedad: "neutro",
 };
 
+/**
+ * Dice en una palabra si alguien ofrece o busca algo (S23). El tipo detallado
+ * (producto, servicio, oferta…) queda al lado.
+ */
+const SENTIDO: Record<string, { etiqueta: string; tono: "marca" | "acento" | "neutro" } | null> = {
+  necesidad: { etiqueta: "Busca", tono: "acento" },
+  producto: { etiqueta: "Ofrece", tono: "marca" },
+  servicio: { etiqueta: "Ofrece", tono: "marca" },
+  oferta: { etiqueta: "Ofrece", tono: "marca" },
+  oportunidad: { etiqueta: "Ofrece", tono: "marca" },
+  novedad: null,
+};
+
+
 export function TarjetaPublicacion(props: Props) {
   const [pendiente, iniciar] = useTransition();
   const { publicacion: p } = props;
@@ -96,6 +110,17 @@ export function TarjetaPublicacion(props: Props) {
             >
               {props.autorNombre}
             </Link>
+            {SENTIDO[p.tipo] ? (
+              <span
+                className={
+                  SENTIDO[p.tipo]!.tono === "acento"
+                    ? "rounded-md bg-acento px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-superficie"
+                    : "rounded-md bg-marca px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-superficie"
+                }
+              >
+                {SENTIDO[p.tipo]!.etiqueta}
+              </span>
+            ) : null}
             <Insignia tono={TONO_TIPO[p.tipo] ?? "neutro"}>{p.tipo}</Insignia>
             {props.patrocinado ? <Insignia tono="alerta">Patrocinado</Insignia> : null}
           </div>

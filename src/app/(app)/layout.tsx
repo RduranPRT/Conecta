@@ -12,11 +12,11 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <EncabezadoApp />
 
       <div className="contenedor flex gap-8 py-6 pb-24 lg:pb-10">
-        <NavLateral sinLeer={sinLeer} />
+        <NavLateral sinLeer={sinLeer} conPerfil={Boolean(perfil)} />
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <NavInferior sinLeer={sinLeer} />
+      <NavInferior sinLeer={sinLeer} conPerfil={Boolean(perfil)} />
     </div>
   );
 }

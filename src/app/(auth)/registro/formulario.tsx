@@ -17,9 +17,10 @@ export function FormularioRegistro() {
 
       <div>
         <label className="etiqueta" htmlFor="nombre">
-          Nombre o razón social
+          Tu nombre o el de tu negocio
         </label>
         <input id="nombre" name="nombre" className="campo" required autoComplete="name" />
+        <p className="ayuda">Lo podrás cambiar en el paso siguiente.</p>
       </div>
 
       <div>
@@ -53,7 +54,7 @@ export function FormularioRegistro() {
       </div>
 
       <Boton type="submit" className="w-full" disabled={pendiente}>
-        {pendiente ? "Creando cuenta…" : "Crear cuenta"}
+        {pendiente ? "Creando cuenta…" : "Crear cuenta y seguir"}
       </Boton>
     </form>
   );

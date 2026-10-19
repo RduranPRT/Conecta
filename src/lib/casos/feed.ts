@@ -14,6 +14,8 @@ import {
 } from "@/db/schema";
 
 import { registrarEvento } from "./eventos";
+import { datosParaRequisitos } from "./perfil";
+import { exigirRequisitos } from "./requisitos";
 
 export type FiltrosFeed = {
   perfilId?: number | null;
@@ -173,6 +175,13 @@ export async function crearPublicacion(entrada: {
   precio?: number | null;
   moneda?: string;
 }) {
+  // Lo que se ofrece (producto, servicio, oferta) necesita saber dónde y qué:
+  // así aparece en las búsquedas y en el feed de quien está cerca.
+  if (entrada.tipo !== "novedad" && entrada.tipo !== "necesidad") {
+    const datos = await datosParaRequisitos(entrada.autorPerfilId);
+    exigirRequisitos("publicar_oferta", { ...datos, comunaId: entrada.comunaId ?? datos.comunaId });
+  }
+
   const [fila] = await db
     .insert(publicaciones)
     .values({

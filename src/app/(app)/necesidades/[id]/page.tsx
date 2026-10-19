@@ -11,6 +11,8 @@ import { invitaciones, operaciones, propuestas as tablaPropuestas } from "@/db/s
 import { trazaDeNecesidad } from "@/lib/casos/actividad";
 import { calcularMatch, obtenerNecesidad } from "@/lib/casos/necesidades";
 import { propuestasDe } from "@/lib/casos/propuestas";
+import { requisitosDe } from "@/lib/casos/requisitos";
+import { prefijoTelefonico } from "@/lib/casos/territorio";
 import { fechaHora, haceCuanto, monto } from "@/lib/formato";
 import { formatearDistancia } from "@/lib/geo";
 import { obtenerPerfil } from "@/lib/sesion";
@@ -100,6 +102,11 @@ export default async function PaginaNecesidad({
 
   const abierta = necesidad.estado === "publicada" || necesidad.estado === "en_cotizacion";
   const puedeCotizar = Boolean(perfil) && !soySolicitante && abierta;
+  const motivoTelefono = requisitosDe("enviar_propuesta").find((r) => r.campo === "telefono")!.motivo;
+  const pedirTelefono =
+    puedeCotizar && perfil && !perfil.telefono
+      ? { prefijo: await prefijoTelefonico(perfil.comunaId), motivo: motivoTelefono }
+      : null;
 
   const mejor = propuestas.length
     ? propuestas.reduce((a, b) => (Number(a.propuesta.monto) <= Number(b.propuesta.monto) ? a : b))
@@ -187,6 +194,7 @@ export default async function PaginaNecesidad({
             <FormularioPropuesta
               necesidadId={necesidadId}
               moneda={necesidad.moneda}
+              pedirTelefono={pedirTelefono}
               propuestaPrevia={
                 miPropuesta
                   ? {
@@ -356,7 +364,7 @@ export default async function PaginaNecesidad({
             Ordenados por distancia, relevancia, disponibilidad y reputación. Los primeros ya
             recibieron la oportunidad automáticamente.
           </p>
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {candidatos.map((actor) => (
               <TarjetaActor
                 key={actor.id}

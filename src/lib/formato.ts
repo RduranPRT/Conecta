@@ -43,3 +43,13 @@ export function reputacion(promedio: string | number | null | undefined, conteo:
   const n = typeof promedio === "string" ? Number(promedio) : promedio;
   return `${n.toFixed(1).replace(".", ",")} · ${conteo} ${conteo === 1 ? "reseña" : "reseñas"}`;
 }
+
+/**
+ * Roles que se muestran en una ficha. «Persona» (buscar y contratar) solo se
+ * muestra cuando es lo único que hace el perfil: en una empresa que además
+ * vende, decir «Persona» confunde.
+ */
+export function rolesVisibles<T extends string>(roles: T[]) {
+  const ofrece = roles.filter((r) => r !== "persona");
+  return ofrece.length ? ofrece : roles;
+}

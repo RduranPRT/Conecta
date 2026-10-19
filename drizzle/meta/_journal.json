@@ -15,6 +15,13 @@
       "when": 1788903884182,
       "tag": "0001_hot_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792449362106,
+      "tag": "0002_nostalgic_quentin_quire",
+      "breakpoints": true
     }
   ]
 }
