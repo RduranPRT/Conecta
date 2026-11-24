@@ -9,7 +9,7 @@ import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "../src/db";
 import {
@@ -33,12 +33,15 @@ import {
 } from "../src/lib/casos/propuestas";
 
 import { crearItem } from "../src/lib/casos/catalogo";
+import { agregarFotoItem, fijarFotoPerfil } from "../src/lib/casos/imagenes";
 import { crearPerfil } from "../src/lib/casos/perfil";
+import { configAlmacenamiento } from "../src/lib/env";
 import { digitoVerificador, formatearRut } from "../src/lib/rut";
 import { normalizarTelefono } from "../src/lib/telefono";
 
 import { ACTORES, CLAVE_DEMO, PERFILES_PRUEBA } from "./actores";
 import { cargarCatalogos } from "./catalogos";
+import { FOTOS_ITEM, FOTOS_PERFIL, ilustracion } from "./seed/fotos";
 
 const paso = (texto: string) => console.log(`· ${texto}`);
 
@@ -244,6 +247,24 @@ async function main() {
     perfilId: (await db.query.perfiles.findFirst({ where: eq(perfiles.slug, "cuenta-antigua") }))!.id,
     rol: "persona",
   });
+
+  /* 4d · Fotos de ejemplo, con los mismos casos de uso que la interfaz */
+  if (configAlmacenamiento().driver === "deshabilitado") {
+    paso("fotos de ejemplo: omitidas (almacenamiento sin configurar)");
+  } else {
+    for (const [slug, dibujo] of FOTOS_PERFIL) {
+      await fijarFotoPerfil(idPerfil.get(slug)!, await ilustracion(dibujo));
+    }
+    for (const [slug, nombre, dibujos] of FOTOS_ITEM) {
+      const perfilId = idPerfil.get(slug)!;
+      const item = await db.query.items.findFirst({
+        where: and(eq(items.perfilId, perfilId), eq(items.nombre, nombre)),
+      });
+      if (!item) throw new Error(`El seed espera «${nombre}» en ${slug}.`);
+      for (const d of dibujos) await agregarFotoItem(perfilId, item.id, await ilustracion(d));
+    }
+    paso(`fotos de ejemplo: ${FOTOS_PERFIL.length} perfiles y ${FOTOS_ITEM.length} productos`);
+  }
 
   /* 5 · Dos verificaciones pendientes, para que el Centro de Control tenga cola */
   await db
