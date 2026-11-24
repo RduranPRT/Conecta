@@ -1,8 +1,8 @@
 import { cache } from "react";
-import { asc, eq, isNotNull, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { comunas, paises, perfiles, regiones } from "@/db/schema";
+import { comunas, paises, regiones } from "@/db/schema";
 
 export type OpcionRegion = { id: number; nombre: string };
 export type OpcionComunaTerritorio = {
@@ -65,6 +65,40 @@ export async function ubicacionDeComuna(comunaId: number | null | undefined) {
   return fila ?? null;
 }
 
+/** undefined = no eligió; null = eligió «todo Chile». */
+export type ComunaElegida = number | null | undefined;
+
+export type TerritorioExplorado = {
+  comuna: NonNullable<Awaited<ReturnType<typeof ubicacionDeComuna>>> | null;
+  /** `explicito`: la persona lo pidió, así que filtra. Si no, solo ordena. */
+  explicito: boolean;
+};
+
+/**
+ * Única regla para saber qué territorio se explora (S20): lo que dice la URL,
+ * luego lo que la persona eligió, luego su comuna y al final la comuna piloto.
+ */
+export async function territorioExplorado(entrada: {
+  url?: number;
+  guardada: ComunaElegida;
+  perfil?: number;
+}): Promise<TerritorioExplorado> {
+  if (entrada.url) {
+    const comuna = await ubicacionDeComuna(entrada.url);
+    if (comuna) return { comuna, explicito: true };
+  }
+  if (entrada.guardada === null) return { comuna: null, explicito: true };
+  if (entrada.guardada) {
+    const comuna = await ubicacionDeComuna(entrada.guardada);
+    if (comuna) return { comuna, explicito: true };
+  }
+  if (entrada.perfil) {
+    const comuna = await ubicacionDeComuna(entrada.perfil);
+    if (comuna) return { comuna, explicito: false };
+  }
+  return { comuna: await comunaPiloto(), explicito: false };
+}
+
 /** Prefijo telefónico del país de una comuna (o el del primer país activo). */
 export async function prefijoTelefonico(comunaId?: number | null) {
   if (comunaId) {
@@ -85,21 +119,12 @@ export async function prefijoTelefonico(comunaId?: number | null) {
   return pais?.prefijo ?? "+56";
 }
 
-/** Comunas donde ya hay al menos un perfil: lo que de verdad tiene oferta hoy. */
-export async function comunasConActividad() {
-  const [fila] = await db
-    .select({ total: sql<number>`count(distinct ${perfiles.comunaId})::int` })
-    .from(perfiles)
-    .where(isNotNull(perfiles.comunaId));
-  return Number(fila?.total ?? 0);
-}
-
 /** Comuna piloto: donde la plataforma arrancó y hay más oferta. */
 export async function comunaPiloto() {
   const [fila] = await db
-    .select({ id: comunas.id, nombre: comunas.nombre, lat: comunas.lat, lng: comunas.lng })
+    .select({ id: comunas.id })
     .from(comunas)
     .where(eq(comunas.activa, true))
     .limit(1);
-  return fila ?? null;
+  return fila ? ubicacionDeComuna(fila.id) : null;
 }

@@ -1,24 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
-import { MapPin, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 
 import { GeolocalizarMapa } from "@/components/geolocalizar-mapa";
 import { Mapa, type PuntoMapa } from "@/components/mapa";
-import { SelectorComuna } from "@/components/selector-comuna";
 import { SelectCategoria } from "@/components/selector-especialidades";
 import { TarjetaActor } from "@/components/tarjeta-actor";
+import { IndicadorTerritorio } from "@/components/territorio-explorado";
 import { Encabezado, Insignia, Tarjeta } from "@/components/ui";
-import { db } from "@/db";
-import { comunas } from "@/db/schema";
 import { buscarActores } from "@/lib/casos/actores";
 import { arbolDeRubros } from "@/lib/casos/categorias";
 import { comunaMasCercana } from "@/lib/casos/perfil";
-import { comunaPiloto, opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
+import { opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
 import { contextoInterprete, interpretar } from "@/lib/ia";
 import { ROLES_QUE_OFRECEN } from "@/lib/roles";
 import { obtenerPerfil } from "@/lib/sesion";
+import { territorioDeLaPeticion } from "@/lib/territorio-sesion";
 import type { RolActor } from "@/db/schema";
 
 export const metadata: Metadata = { title: "Mapa" };
@@ -47,10 +45,10 @@ export default async function PaginaMapa({
   const { rol = "todos", comuna, categoria, lat: latParam, lng: lngParam, q = "" } = await searchParams;
   const perfil = await obtenerPerfil();
 
-  const [territorio, rubros, piloto] = await Promise.all([
+  const [territorio, rubros, explorado] = await Promise.all([
     opcionesTerritorio(),
     arbolDeRubros(),
-    comunaPiloto(),
+    territorioDeLaPeticion(comuna),
   ]);
 
   const geoLat = latParam ? Number(latParam) : null;
@@ -64,13 +62,10 @@ export default async function PaginaMapa({
   // a mano: si viene "comuna" en la URL, esa elección manda.
   const comunaGeolocalizada = miUbicacion && !comuna ? await comunaMasCercana(miUbicacion.lat, miUbicacion.lng) : null;
 
-  const comunaId =
-    Number(comuna) ||
-    comunaGeolocalizada?.id ||
-    perfil?.comunaId ||
-    piloto?.id ||
-    null;
-  const ubicacion = await ubicacionDeComuna(comunaId);
+  const ubicacion = comunaGeolocalizada
+    ? await ubicacionDeComuna(comunaGeolocalizada.id)
+    : explorado.comuna;
+  const comunaId = ubicacion?.id ?? null;
 
   // "Buscar en esta zona": el texto pasa por el mismo intérprete que el
   // buscador general, pero la zona la fija el mapa, no la frase.
@@ -91,12 +86,11 @@ export default async function PaginaMapa({
   let centro: { lat: number; lng: number } = { lat: -33.45, lng: -70.66 };
   if (miUbicacion) {
     centro = miUbicacion;
-  } else if (comunaId) {
-    const comunaCentro = await db.query.comunas.findFirst({ where: eq(comunas.id, comunaId) });
-    if (comunaCentro) centro = { lat: comunaCentro.lat, lng: comunaCentro.lng };
+  } else if (ubicacion) {
+    centro = { lat: ubicacion.lat, lng: ubicacion.lng };
   }
 
-  const activarGeolocalizacion = !comuna && !miUbicacion;
+  const activarGeolocalizacion = !explorado.explicito && !miUbicacion;
 
   const puntos: PuntoMapa[] = actores.map((a) => ({
     id: a.id,
@@ -118,7 +112,7 @@ export default async function PaginaMapa({
     const p = new URLSearchParams();
     const base = {
       rol,
-      comuna: comuna ?? String(comunaId ?? ""),
+      comuna: comuna ?? (miUbicacion ? undefined : String(comunaId ?? "")),
       categoria,
       lat: latParam,
       lng: lngParam,
@@ -140,13 +134,11 @@ export default async function PaginaMapa({
 
       <GeolocalizarMapa activo={activarGeolocalizacion} />
 
-      {ubicacion ? (
-        <p className="-mt-2 inline-flex items-center gap-1 text-xs text-tenue">
-          <MapPin size={12} className="text-marca" />
-          Estás viendo {ubicacion.nombre}, {ubicacion.regionNombre}. Cámbiala con el botón de
-          filtros.
-        </p>
-      ) : null}
+      <IndicadorTerritorio
+        explorado={{ comuna: ubicacion, explicito: explorado.explicito }}
+        territorio={territorio}
+        volver={enlace({ comuna: undefined, lat: undefined, lng: undefined })}
+      />
 
       <div className="flex items-start gap-2">
         <form action="/mapa" role="search" className="relative flex-1">
@@ -186,14 +178,7 @@ export default async function PaginaMapa({
           >
             {rol !== "todos" ? <input type="hidden" name="rol" value={rol} /> : null}
             {q ? <input type="hidden" name="q" value={q} /> : null}
-            <SelectorComuna
-              territorio={territorio}
-              nombre="comuna"
-              inicial={comunaId}
-              compacto
-              idBase="filtro-mapa"
-              etiquetaVacia="Elige una comuna"
-            />
+            {comunaId ? <input type="hidden" name="comuna" value={comunaId} /> : null}
             <label className="text-xs text-tenue" htmlFor="filtro-categoria">
               Qué buscas
             </label>
@@ -252,13 +237,16 @@ export default async function PaginaMapa({
       ) : (
         <Tarjeta className="grid place-items-center px-6 py-16 text-center">
           <p className="text-sm text-tenue">
-            No hay actores con ubicación en esta selección todavía.
+            {ubicacion
+              ? `Todavía no hay oferta en ${ubicacion.nombre} con estos filtros.`
+              : "No hay oferta con estos filtros todavía."}{" "}
+            Cambia de comuna arriba o quita filtros.
           </p>
         </Tarjeta>
       )}
       {miUbicacion && !puntos.length ? (
         <p className="text-center text-xs text-tenue">
-          Te ubicamos, pero todavía no hay actores con ubicación cerca de ti en esta selección.
+          Te ubicamos{ubicacion ? ` en ${ubicacion.nombre}` : ""}, pero ahí todavía no hay oferta con estos filtros.
         </p>
       ) : null}
 

@@ -1,23 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MapPin, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 
+import { AccionConSesion } from "@/components/accion-con-sesion";
 import { EtiquetaSentido } from "@/components/etiqueta-sentido";
 import { Mapa, type PuntoMapa } from "@/components/mapa";
-import { SelectorComuna } from "@/components/selector-comuna";
 import { TarjetaActor } from "@/components/tarjeta-actor";
-import { AccionConSesion } from "@/components/accion-con-sesion";
-import { BotonEnlace, Insignia, Tarjeta, Vacio } from "@/components/ui";
+import { IndicadorTerritorio } from "@/components/territorio-explorado";
+import { Aviso, BotonEnlace, Insignia, Tarjeta, Vacio } from "@/components/ui";
 import type { RolActor } from "@/db/schema";
-import { buscarActores } from "@/lib/casos/actores";
+import { buscarEnTerritorio } from "@/lib/casos/buscar";
 import { registrarBusqueda } from "@/lib/casos/busquedas";
-import { categoriasPorId } from "@/lib/casos/perfil";
 import { buscarNecesidadesAbiertas } from "@/lib/casos/necesidades";
-import { comunaPiloto, opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
+import { categoriasPorId } from "@/lib/casos/perfil";
+import { opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
 import { contextoInterprete, hayModelo, interpretar } from "@/lib/ia";
 import { ROLES_QUE_OFRECEN } from "@/lib/roles";
 import { obtenerPerfil } from "@/lib/sesion";
+import { territorioDeLaPeticion } from "@/lib/territorio-sesion";
 
 export const metadata: Metadata = { title: "Buscar" };
 export const dynamic = "force-dynamic";
@@ -45,38 +46,48 @@ const FILTROS_ROL: { valor: RolActor | "todos"; etiqueta: string }[] = [
   { valor: "productor", etiqueta: "Productores" },
 ];
 
+const PILDORA =
+  "shrink-0 rounded-full border border-borde bg-superficie px-3 py-1.5 text-xs text-tenue transition hover:bg-superficie2";
+const PILDORA_ACTIVA =
+  "shrink-0 rounded-full bg-marca px-3 py-1.5 text-xs font-medium text-white";
+
 export default async function PaginaBuscar({ searchParams }: { searchParams: Params }) {
   const { q = "", vista = "lista", comuna, categoria, rol = "todos" } = await searchParams;
-  const perfil = await obtenerPerfil();
+  const [perfil, explorado] = await Promise.all([obtenerPerfil(), territorioDeLaPeticion(comuna)]);
+  const conSesion = Boolean(perfil);
 
-  const contexto = await contextoInterprete(perfil?.comunaId ?? null);
+  const contexto = await contextoInterprete(
+    explorado.explicito ? (explorado.comuna?.id ?? null) : (perfil?.comunaId ?? null),
+  );
   const intencion = await interpretar(q, contexto);
-  if (Number(comuna)) intencion.comunaId = Number(comuna);
   if (Number(categoria)) {
     intencion.categoriaId = Number(categoria);
     const [cat] = await categoriasPorId([Number(categoria)]);
     intencion.categoriaNombre = cat?.nombre ?? intencion.categoriaNombre;
   }
 
-  const desde = perfil?.lat && perfil?.lng ? { lat: perfil.lat, lng: perfil.lng } : null;
-  // Quien solo compra no aparece: no ofrece nada y su ubicación sería su casa.
   const filtraRol = (ROLES_QUE_OFRECEN as string[]).includes(rol);
-  const roles = filtraRol
-    ? [rol as RolActor]
-    : intencion.roles.filter((r) => ROLES_QUE_OFRECEN.includes(r)).length
-      ? intencion.roles.filter((r) => ROLES_QUE_OFRECEN.includes(r))
-      : ROLES_QUE_OFRECEN;
-  const hayCriterio = Boolean(q || intencion.categoriaId || intencion.comunaId || filtraRol);
+  const hayCriterio = Boolean(q || intencion.categoriaId || Number(comuna) || filtraRol);
+  const desdePerfil = perfil?.lat && perfil?.lng ? { lat: perfil.lat, lng: perfil.lng } : null;
 
-  const [actores, necesidadesRelacionadas, territorio, ubicacion] = await Promise.all([
-    hayCriterio ? buscarActores(intencion, { desde, limite: 30, roles, conSesion: Boolean(perfil) }) : Promise.resolve([]),
-    q || intencion.categoriaId ? buscarNecesidadesAbiertas(intencion, { conSesion: Boolean(perfil) }) : Promise.resolve([]),
+  const [resultado, necesidadesRelacionadas, territorio, nombrada] = await Promise.all([
+    hayCriterio
+      ? buscarEnTerritorio({ intencion, explorado, rol, desdePerfil, conSesion })
+      : { actores: [], fueraDeTerritorio: false, roles: ROLES_QUE_OFRECEN },
+    q || intencion.categoriaId ? buscarNecesidadesAbiertas(intencion, { conSesion }) : [],
     opcionesTerritorio(),
     ubicacionDeComuna(intencion.comunaId),
   ]);
+  const { actores } = resultado;
+  // Si la frase nombra una comuna, esa es la que se está explorando.
+  const aqui = nombrada ?? explorado.comuna;
 
   if (q) {
-    await registrarBusqueda({ perfilId: perfil?.id ?? null, intencion, resultados: actores.length });
+    await registrarBusqueda({
+      perfilId: perfil?.id ?? null,
+      intencion,
+      resultados: resultado.fueraDeTerritorio ? 0 : actores.length,
+    });
   }
 
   const puntos: PuntoMapa[] = actores
@@ -94,10 +105,7 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
       reputacion: a.reputacionPromedio,
       distancia: a.distanciaKm !== null ? formatearDistancia(a.distanciaKm) : null,
     }));
-  const centro =
-    desde ??
-    (ubicacion ? { lat: ubicacion.lat, lng: ubicacion.lng } : null) ??
-    (await comunaPiloto()) ?? { lat: -33.45, lng: -70.66 };
+  const centro = aqui ? { lat: aqui.lat, lng: aqui.lng } : { lat: -33.45, lng: -70.66 };
 
   const enlace = (cambios: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
@@ -108,93 +116,61 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
     return `/buscar?${p.toString()}`;
   };
 
-  const titulo = q ? `«${q}»` : intencion.categoriaNombre ?? "Buscar";
+  const titulo = q ? `«${q}»` : (intencion.categoriaNombre ?? "Buscar");
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h1 className="text-lg font-semibold text-texto">{titulo}</h1>
+    <div className="space-y-2.5">
+      {/* Compacto a propósito (S06): la primera tarjeta se ve sin hacer scroll. */}
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="truncate text-base font-semibold text-texto">{titulo}</h1>
         {hayCriterio ? (
-          <p className="text-xs text-tenue">
+          <p className="shrink-0 text-xs text-tenue">
             {actores.length} {actores.length === 1 ? "resultado" : "resultados"}
           </p>
         ) : null}
       </div>
 
-      {/* Dónde se está buscando (S20) y cómo se entendió la búsqueda, en una sola franja. */}
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <details className="group relative">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full border border-borde bg-superficie px-2.5 py-1 text-tenue transition hover:bg-superficie2 [&::-webkit-details-marker]:hidden">
-            <MapPin size={12} className="text-marca" />
-            {ubicacion ? `${ubicacion.nombre}, ${ubicacion.regionNombre}` : "Todo Chile"}
-            <span className="text-marca">· cambiar</span>
-          </summary>
-          <form
-            action="/buscar"
-            className="tarjeta absolute left-0 top-9 z-[600] grid w-72 gap-2 p-3 shadow-flotante"
-          >
-            {q ? <input type="hidden" name="q" value={q} /> : null}
-            {categoria ? <input type="hidden" name="categoria" value={categoria} /> : null}
-            {rol !== "todos" ? <input type="hidden" name="rol" value={rol} /> : null}
-            <SelectorComuna
-              territorio={territorio}
-              nombre="comuna"
-              inicial={intencion.comunaId}
-              compacto
-              idBase="buscar"
-              etiquetaVacia="Elige una comuna"
-            />
-            <button
-              type="submit"
-              className="h-9 rounded-lg bg-marca px-3 text-xs font-medium text-white transition hover:bg-marca-fuerte"
-            >
-              Buscar aquí
-            </button>
-            {intencion.comunaId ? (
-              <Link href={enlace({ comuna: undefined })} className="text-center text-xs text-tenue hover:text-texto">
-                Buscar en todo Chile
-              </Link>
-            ) : null}
-          </form>
-        </details>
-
-        {intencion.categoriaNombre ? (
+        <IndicadorTerritorio
+          explorado={{ comuna: aqui, explicito: explorado.explicito }}
+          territorio={territorio}
+          volver={enlace({ comuna: undefined })}
+        />
+        {intencion.categoriaNombre && q ? (
           <Link
             href={enlace({ categoria: undefined })}
             className="inline-flex items-center gap-1 rounded-full bg-marca/10 px-2.5 py-1 text-marca"
-            title={categoria ? "Quitar filtro" : undefined}
+            title={intencion.explicacion}
           >
+            <Sparkles size={11} />
             {intencion.categoriaNombre}
             {categoria ? <X size={11} /> : null}
           </Link>
         ) : null}
         {intencion.disponibilidad !== "cualquiera" ? (
-          <Insignia tono="alerta">{intencion.disponibilidad === "hoy" ? "Hoy" : "Esta semana"}</Insignia>
-        ) : null}
-        {intencion.cerca ? <Insignia tono="contorno">Cerca de ti</Insignia> : null}
-        {q ? (
-          <span className="inline-flex items-center gap-1 text-tenue" title={intencion.explicacion}>
-            <Sparkles size={11} className="text-marca" />
-            {intencion.motor === "modelo" ? "interpretado por IA" : "interpretado automáticamente"}
-          </span>
+          <Insignia tono="alerta">
+            {intencion.disponibilidad === "hoy" ? "Hoy" : "Esta semana"}
+          </Insignia>
         ) : null}
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="-mx-1 flex flex-1 gap-1.5 overflow-x-auto px-1">
+        <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1">
           {FILTROS_ROL.map((f) => (
             <Link
               key={f.valor}
               href={enlace({ rol: f.valor })}
-              className={
-                rol === f.valor
-                  ? "shrink-0 rounded-full bg-marca px-3 py-1.5 text-xs font-medium text-white"
-                  : "shrink-0 rounded-full border border-borde bg-superficie px-3 py-1.5 text-xs text-tenue transition hover:bg-superficie2"
-              }
+              className={(filtraRol ? rol : "todos") === f.valor ? PILDORA_ACTIVA : PILDORA}
             >
               {f.etiqueta}
             </Link>
           ))}
+          <Link
+            href={enlace({ vista: vista === "mapa" ? "lista" : "mapa" })}
+            className={`${vista === "mapa" ? PILDORA_ACTIVA : PILDORA} sm:hidden`}
+          >
+            {vista === "mapa" ? "Ver lista" : "Ver mapa"}
+          </Link>
         </div>
         <nav className="hidden shrink-0 rounded-xl border border-borde bg-superficie p-0.5 sm:inline-flex">
           {VISTAS.map((v) => (
@@ -213,13 +189,19 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
         </nav>
       </div>
 
+      {resultado.fueraDeTerritorio && aqui ? (
+        <Aviso tono="alerta">
+          Todavía no hay oferta en {aqui.nombre}. Estos son los más cercanos en otras comunas.
+        </Aviso>
+      ) : null}
+
       {vista !== "lista" && puntos.length ? (
         <Mapa puntos={puntos} centro={centro} alto={vista === "mapa" ? "70vh" : "42vh"} />
       ) : null}
 
       {vista !== "mapa" ? (
         actores.length ? (
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 gap-3" data-testid="resultados">
             {actores.map((actor) => (
               <TarjetaActor key={actor.id} actor={actor} />
             ))}
@@ -229,7 +211,7 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
             titulo={hayCriterio ? "Nadie calza con esa búsqueda todavía" : "Escribe qué necesitas"}
             descripcion={
               hayCriterio
-                ? "Publícalo como necesidad: la plataforma avisa a quien pueda resolverlo. También puedes buscar en todo Chile o explorar por área."
+                ? "Publícalo como necesidad: la plataforma avisa a quien pueda resolverlo. También puedes explorar por área."
                 : "Una palabra («gasfíter») o una frase completa («necesito un gasfíter que pueda venir hoy cerca de mí»)."
             }
           >
@@ -237,7 +219,7 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
               {q ? (
                 <AccionConSesion
                   href={`/publicar?tipo=necesidad&q=${encodeURIComponent(q)}`}
-                  haySesion={Boolean(perfil)}
+                  haySesion={conSesion}
                   tamano="sm"
                 >
                   Publicar como necesidad
@@ -258,7 +240,7 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
       ) : null}
 
       {necesidadesRelacionadas.length ? (
-        <section className="pt-2">
+        <section className="pt-4">
           <h2 className="titulo-seccion mb-3">Pedidos abiertos relacionados</h2>
           <Tarjeta className="divide-y divide-borde">
             {necesidadesRelacionadas.map((necesidad) => (

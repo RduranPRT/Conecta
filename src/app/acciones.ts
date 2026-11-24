@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -29,6 +29,7 @@ import {
 } from "@/lib/casos/perfil";
 import { conParametros, destinoSeguro, INICIO } from "@/lib/destino";
 import { obtenerPerfil, obtenerSesion } from "@/lib/sesion";
+import { COOKIE_TERRITORIO } from "@/lib/territorio-sesion";
 import type { RolActor, TipoIdentidad } from "@/db/schema";
 
 export type EstadoAccion = { ok?: boolean; error?: string; mensaje?: string; id?: number };
@@ -204,6 +205,23 @@ export async function accionDisponibilidad(disponible: boolean) {
   const perfil = await perfilOFalla();
   await fijarDisponibilidad(perfil.id, disponible);
   revalidatePath("/", "layout");
+}
+
+/** Recuerda qué comuna se quiere explorar. Sirve con y sin cuenta (S20). */
+export async function accionElegirTerritorio(formData: FormData) {
+  const volver = destinoSeguro(texto(formData, "volver"));
+  const todo = Boolean(texto(formData, "todo"));
+  const comuna = numero(formData, "comuna");
+  if (todo || comuna) {
+    (await cookies()).set(COOKIE_TERRITORIO, todo ? "todo" : String(comuna), {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production" && process.env.BETTER_AUTH_URL?.startsWith("https"),
+      maxAge: 60 * 60 * 24 * 180,
+    });
+  }
+  redirect(volver);
 }
 
 /* ── Necesidades y matching ────────────────────────────────────────────── */

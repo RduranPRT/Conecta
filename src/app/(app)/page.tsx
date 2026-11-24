@@ -5,7 +5,6 @@ import {
   ArrowRight,
   ChevronRight,
   Handshake,
-  MapPin,
   PackageSearch,
   Plus,
   Sparkles,
@@ -17,13 +16,16 @@ import { AccionConSesion } from "@/components/accion-con-sesion";
 import { BuscadorRapido } from "@/components/buscador-rapido";
 import { QueEsConecta } from "@/components/que-es-conecta";
 import { TarjetaDestacada } from "@/components/tarjeta-destacada";
-import { Encabezado, Insignia, Vacio } from "@/components/ui";
+import { IndicadorTerritorio } from "@/components/territorio-explorado";
+import { BotonEnlace, Encabezado, Insignia, Vacio } from "@/components/ui";
 import { actividadDe } from "@/lib/casos/actividad";
 import { arbolDeRubros } from "@/lib/casos/categorias";
 import { feedPara } from "@/lib/casos/feed";
 import { oportunidadesDe } from "@/lib/casos/necesidades";
+import { opcionesTerritorio } from "@/lib/casos/territorio";
 import { monto } from "@/lib/formato";
 import { obtenerPerfil, puedeOfrecer } from "@/lib/sesion";
+import { territorioDeLaPeticion } from "@/lib/territorio-sesion";
 
 export const metadata: Metadata = { title: "Inicio" };
 export const dynamic = "force-dynamic";
@@ -56,16 +58,21 @@ export default async function PaginaInicio() {
   const haySesion = Boolean(perfil);
   const ofrece = puedeOfrecer(perfil);
 
-  const [actividad, oportunidades, feed, rubros] = await Promise.all([
+  const explorado = await territorioDeLaPeticion();
+  // La comuna piloto solo ordena; la propia o la elegida, además filtra.
+  const soloMiZona = Boolean(explorado.comuna && (explorado.explicito || perfil?.comunaId));
+
+  const [actividad, oportunidades, feed, rubros, territorio] = await Promise.all([
     perfil ? actividadDe(perfil.id) : null,
     perfil && ofrece ? oportunidadesDe(perfil.id, 4) : [],
     feedPara({
       perfilId: perfil?.id ?? null,
-      comunaId: perfil?.comunaId ?? null,
-      soloMiZona: Boolean(perfil?.comunaId),
+      comunaId: explorado.comuna?.id ?? null,
+      soloMiZona,
       limite: 12,
     }),
     arbolDeRubros(),
+    opcionesTerritorio(),
   ]);
 
   // Las necesidades abiertas llegan a quien puede resolverlas por
@@ -88,17 +95,8 @@ export default async function PaginaInicio() {
                 : "Productos, servicios, negocios y prestadores cerca de ti."}
             </p>
           </div>
-          {perfil ? (
-            <Link
-              href="/mi-perfil"
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-borde px-2.5 py-1 text-xs text-tenue transition hover:bg-superficie2"
-              title="Cambiar tu comuna desde Mi perfil"
-            >
-              <MapPin size={13} className="text-marca" />
-              {perfil.comunaNombre ?? "Elige tu comuna"}
-            </Link>
-          ) : null}
         </div>
+        <IndicadorTerritorio explorado={explorado} territorio={territorio} volver="/" />
 
         <Suspense fallback={<div className="h-14" />}>
           <BuscadorRapido tamano="lg" />
@@ -168,9 +166,17 @@ export default async function PaginaInicio() {
           </div>
         ) : (
           <Vacio
-            titulo="Todavía no hay publicaciones en esta zona"
-            descripcion="Usa «Ofrezco algo» para mostrar tus productos o servicios a quienes están cerca."
-          />
+            titulo={
+              explorado.comuna
+                ? `Todavía no hay oferta publicada en ${explorado.comuna.nombre}`
+                : "Todavía no hay publicaciones"
+            }
+            descripcion="Cambia de comuna arriba, mira lo que hay en el resto de Chile o usa «Ofrezco algo» para ser el primero."
+          >
+            <BotonEnlace href="/descubrir?zona=todo" variante="secundario" tamano="sm">
+              Ver otras comunas
+            </BotonEnlace>
+          </Vacio>
         )}
       </section>
 
