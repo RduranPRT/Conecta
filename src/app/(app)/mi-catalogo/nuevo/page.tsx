@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { Encabezado, Tarjeta } from "@/components/ui";
-import { arbolDeRubros } from "@/lib/casos/categorias";
+import { opcionesCategoria } from "@/lib/casos/categorias";
 import { requerirPerfil } from "@/lib/sesion";
 
 import { FormularioItem } from "../formulario-item";
@@ -16,7 +16,7 @@ export default async function PaginaNuevoItem({
 }) {
   const { tipo } = await searchParams;
   const perfil = await requerirPerfil("/mi-catalogo/nuevo");
-  const rubros = await arbolDeRubros();
+  const opciones = await opcionesCategoria();
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -26,7 +26,7 @@ export default async function PaginaNuevoItem({
       />
       <Tarjeta className="p-5 sm:p-6">
         <FormularioItem
-          rubros={rubros}
+          opciones={opciones}
           tipoPorDefecto={
             tipo === "servicio" || (!tipo && perfil.roles.includes("prestador"))
               ? "servicio"

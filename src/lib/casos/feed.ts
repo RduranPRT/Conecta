@@ -15,6 +15,7 @@ import {
 
 import { textoPara } from "@/lib/privacidad";
 
+import { categoriasDeInteres } from "./categorias";
 import { registrarEvento } from "./eventos";
 import { datosParaRequisitos } from "./perfil";
 import { exigirRequisitos } from "./requisitos";
@@ -85,13 +86,17 @@ export async function feedPara(filtros: FiltrosFeed) {
     condiciones.push(eq(publicaciones.comunaId, filtros.comunaId));
   }
 
-  const interesesRaw = filtros.perfilId
+  const ofertaRaw = filtros.perfilId
     ? await db
         .select({ categoriaId: perfilCategorias.categoriaId })
         .from(perfilCategorias)
         .where(eq(perfilCategorias.perfilId, filtros.perfilId))
     : [];
-  const intereses = interesesRaw.map((i) => i.categoriaId);
+  const oferta = ofertaRaw.map((i) => i.categoriaId);
+  // Lo que le interesa no es lo mismo que lo que ofrece (S19).
+  const intereses = filtros.perfilId
+    ? await categoriasDeInteres(filtros.perfilId)
+    : new Set<number>();
 
   const seguidosRaw = filtros.perfilId
     ? await db
@@ -155,8 +160,11 @@ export async function feedPara(filtros: FiltrosFeed) {
       puntaje += 0.25;
       razones.push("en tu comuna");
     }
-    if (fila.publicacion.categoriaId && intereses.includes(fila.publicacion.categoriaId)) {
+    if (fila.publicacion.categoriaId && intereses.has(fila.publicacion.categoriaId)) {
       puntaje += 0.2;
+      razones.push("te interesa");
+    } else if (fila.publicacion.categoriaId && oferta.includes(fila.publicacion.categoriaId)) {
+      puntaje += intereses.size ? 0.05 : 0.2;
       razones.push("de tu rubro");
     }
     if (seguidos.includes(fila.publicacion.autorPerfilId)) {

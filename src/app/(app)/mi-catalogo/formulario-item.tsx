@@ -7,7 +7,7 @@ import {
   accionGuardarItem,
   type EstadoAccion,
 } from "@/app/acciones";
-import { SelectCategoria, type RubroOpcion } from "@/components/selector-especialidades";
+import { SelectorCategoria, type OpcionCategoria } from "@/components/selector-categoria";
 import { Aviso, Boton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -24,11 +24,11 @@ export type ItemInicial = {
 
 /** Alta y edición de un producto o servicio del catálogo (P07). */
 export function FormularioItem({
-  rubros,
+  opciones,
   inicial,
   tipoPorDefecto = "producto",
 }: {
-  rubros: RubroOpcion[];
+  opciones: OpcionCategoria[];
   inicial?: ItemInicial | null;
   tipoPorDefecto?: "producto" | "servicio";
 }) {
@@ -137,8 +137,12 @@ export function FormularioItem({
         <label className="etiqueta" htmlFor="categoriaId">
           Categoría
         </label>
-        <SelectCategoria rubros={rubros} inicial={inicial?.categoriaId} vacia="Elige una categoría" />
-        <p className="ayuda">Ayuda a que te encuentren quienes navegan por rubro.</p>
+        <SelectorCategoria
+          opciones={opciones}
+          inicial={inicial?.categoriaId}
+          placeholder={tipo === "producto" ? "Ej.: marraqueta" : "Ej.: asesoría en contratos"}
+        />
+        <p className="ayuda">Ayuda a que te encuentren quienes buscan por rubro.</p>
       </div>
 
       <div>

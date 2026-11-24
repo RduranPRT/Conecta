@@ -12,7 +12,7 @@ import {
   SeccionUbicacion,
 } from "@/components/campos-ficha";
 import type { Territorio } from "@/components/selector-comuna";
-import type { RubroOpcion } from "@/components/selector-especialidades";
+import type { RubroOpcion } from "@/components/selector-actividades";
 import { Aviso, Boton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 

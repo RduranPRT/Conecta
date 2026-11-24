@@ -7,12 +7,16 @@ import { CLAVE_DEMO } from "./entorno";
  * redes. Se busca en el cuerpo crudo de la respuesta (HTML y datos de React).
  */
 export const PATRONES_CONTACTO: [string, RegExp][] = [
-  ["teléfono con prefijo", /\+?56[\s-]?9[\s-]?\d{4}[\s-]?\d{4}/],
+  ["teléfono con prefijo", /(?<![\d.])\+?56[\s-]?9[\s-]?\d{4}[\s-]?\d{4}(?!\d)/],
   ["celular", /(?<![\d.-])9[\s-]?\d{4}[\s-]?\d{4}(?![\d.-])/],
   ["correo", /[a-z0-9._%+-]+@[a-z0-9-]+\.(?:cl|com|demo|net|org)\b/i],
   ["WhatsApp", /wa\.me|api\.whatsapp|whatsapp:/i],
   ["red social", /instagram\.com|facebook\.com|tiktok\.com|linkedin\.com/i],
-  ["RUT", /"identificadorFiscal|"usuarioId|"telefono"|"correoPublico"|"sitioWeb"|"redes"/],
+  [
+    "campo privado",
+    // Como clave de un objeto, también escapada dentro de los datos de React.
+    /"(?:identificadorFiscal\w*|usuarioId|telefono|correoPublico|sitioWeb|redes)\\?":/,
+  ],
 ];
 
 export function buscarContacto(cuerpo: string) {

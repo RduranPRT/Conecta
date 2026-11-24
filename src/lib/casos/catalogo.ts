@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { categorias, items } from "@/db/schema";
 
-import { filtrarEspecialidades } from "./categorias";
+import { filtrarActividades } from "./categorias";
 import { registrarEvento } from "./eventos";
 
 /**
@@ -37,7 +37,7 @@ async function validarItem(entrada: EntradaItem) {
   if (imagenUrl && !/^https?:\/\/\S+$/i.test(imagenUrl)) {
     throw new Error("La foto debe ser un enlace que empiece con http:// o https://.");
   }
-  const [categoriaId] = entrada.categoriaId ? await filtrarEspecialidades([entrada.categoriaId]) : [];
+  const [categoriaId] = entrada.categoriaId ? await filtrarActividades([entrada.categoriaId]) : [];
 
   return {
     tipo: entrada.tipo,

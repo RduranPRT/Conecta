@@ -18,7 +18,7 @@ import { slugificar } from "@/lib/utils";
 
 import {
   actividadesPropias,
-  filtrarEspecialidades,
+  filtrarActividades,
   fijarActividadesPropias,
   solicitarCategoria,
 } from "./categorias";
@@ -81,7 +81,7 @@ async function validarFicha(datos: DatosFicha) {
   if (!comuna) throw new Error("La comuna elegida no existe.");
 
   const roles = datos.roles.length ? [...new Set(datos.roles)] : (["persona"] as RolActor[]);
-  const categoriaIds = await filtrarEspecialidades([...new Set(datos.categoriaIds ?? [])]);
+  const categoriaIds = await filtrarActividades([...new Set(datos.categoriaIds ?? [])]);
   const otras = (datos.otrasActividades ?? []).map((t) => t.trim()).filter((t) => t.length >= 3);
 
   if (roles.some((r) => ROLES_QUE_OFRECEN.includes(r)) && !categoriaIds.length && !otras.length) {
@@ -292,7 +292,7 @@ export async function fijarRoles(perfilId: number, roles: RolActor[]) {
 }
 
 export async function fijarCategorias(perfilId: number, ids: number[]) {
-  const categoriaIds = await filtrarEspecialidades([...new Set(ids)]);
+  const categoriaIds = await filtrarActividades([...new Set(ids)]);
   await db.transaction(async (tx) => {
     await tx.delete(perfilCategorias).where(eq(perfilCategorias.perfilId, perfilId));
     if (categoriaIds.length) {

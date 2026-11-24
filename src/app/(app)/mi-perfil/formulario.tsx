@@ -8,12 +8,13 @@ import {
   SeccionActividades,
   SeccionContacto,
   SeccionIdentidad,
+  SeccionIntereses,
   SeccionOferta,
   SeccionUbicacion,
   type InicialFicha,
 } from "@/components/campos-ficha";
 import { SelectorCobertura, type Territorio } from "@/components/selector-comuna";
-import type { RubroOpcion } from "@/components/selector-especialidades";
+import type { RubroOpcion } from "@/components/selector-actividades";
 import { Aviso, Boton } from "@/components/ui";
 
 function Bloque({
@@ -43,7 +44,9 @@ export function FormularioEdicion({
   prefijo,
   inicial,
   coberturaInicial,
+  intereses,
 }: {
+  intereses: number[];
   territorio: Territorio;
   rubros: RubroOpcion[];
   prefijo: string;
@@ -79,6 +82,13 @@ export function FormularioEdicion({
         ) : (
           <input type="hidden" name="descripcion" value={inicial.descripcion ?? ""} />
         )}
+
+        <Bloque
+          titulo="Lo que te interesa"
+          bajada="Es distinto de lo que ofreces: solo ordena lo que te mostramos. Puedes buscar cualquier cosa igual."
+        >
+          <SeccionIntereses rubros={rubros} inicial={intereses} />
+        </Bloque>
 
         <Bloque titulo="Dónde estás">
           <SeccionUbicacion territorio={territorio} inicial={inicial} />

@@ -10,6 +10,7 @@ export const ETIQUETA_ROL: Record<string, string> = {
   negocio: "Comercio",
   proveedor: "Proveedor a negocios",
   productor: "Productor",
+  partner: "Partner",
 };
 
 /** Roles que ofrecen algo: son los que aparecen en Buscar y en el mapa. */

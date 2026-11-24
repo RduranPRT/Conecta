@@ -4,12 +4,12 @@ import { Search, SlidersHorizontal } from "lucide-react";
 
 import { GeolocalizarMapa } from "@/components/geolocalizar-mapa";
 import { Mapa, type PuntoMapa } from "@/components/mapa";
-import { SelectCategoria } from "@/components/selector-especialidades";
+import { SelectorCategoria } from "@/components/selector-categoria";
 import { TarjetaActor } from "@/components/tarjeta-actor";
 import { IndicadorTerritorio } from "@/components/territorio-explorado";
 import { Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { buscarActores } from "@/lib/casos/actores";
-import { arbolDeRubros } from "@/lib/casos/categorias";
+import { opcionesCategoria } from "@/lib/casos/categorias";
 import { comunaMasCercana } from "@/lib/casos/perfil";
 import { opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
@@ -45,9 +45,9 @@ export default async function PaginaMapa({
   const { rol = "todos", comuna, categoria, lat: latParam, lng: lngParam, q = "" } = await searchParams;
   const perfil = await obtenerPerfil();
 
-  const [territorio, rubros, explorado] = await Promise.all([
+  const [territorio, opciones, explorado] = await Promise.all([
     opcionesTerritorio(),
-    arbolDeRubros(),
+    opcionesCategoria(),
     territorioDeLaPeticion(comuna),
   ]);
 
@@ -182,14 +182,14 @@ export default async function PaginaMapa({
             <label className="text-xs text-tenue" htmlFor="filtro-categoria">
               Qué buscas
             </label>
-            <SelectCategoria
-              rubros={rubros}
+            <SelectorCategoria
+              opciones={opciones}
               nombre="categoria"
               id="filtro-categoria"
-              inicial={categoria}
-              vacia="Todo"
-              incluirRubros
-              className="campo h-9 py-1 text-xs"
+              inicial={Number(categoria) || null}
+              niveles={["rubro", "subgrupo", "item", "oficio"]}
+              placeholder="Todo"
+              compacto
             />
             <button
               type="submit"

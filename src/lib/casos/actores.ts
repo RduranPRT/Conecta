@@ -1,4 +1,4 @@
-import { and, eq, exists, inArray, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, or, sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -15,7 +15,9 @@ import {
 } from "@/db/schema";
 import { distanciaKm } from "@/lib/geo";
 import { textoPara } from "@/lib/privacidad";
-import { idsQueCubre } from "./categorias";
+import { normalizar } from "@/lib/utils";
+
+import { coberturaDe, textoPropioCoincide } from "./categorias";
 import { puntuar } from "./puntaje";
 import type { Intencion } from "@/lib/ia";
 
@@ -56,6 +58,20 @@ type Opciones = {
   /** Sin sesión, los textos libres salen sin teléfonos, correos ni redes. */
   conSesion?: boolean;
 };
+
+/** Sin tildes ni mayúsculas: «mantencion electrica» encuentra «Mantención eléctrica». */
+function sinTildes(columna: AnyColumn) {
+  return sql`translate(lower(coalesce(${columna}, '')), 'áéíóúüñ', 'aeiouun')`;
+}
+
+/** Expresión que calza al inicio de una palabra: «pan» no es «compañía». */
+function inicioDePalabra(termino: string) {
+  return `\\m${normalizar(termino).replace(/[^a-z0-9]/g, "")}`;
+}
+
+function calza(columna: AnyColumn, patron: string) {
+  return sql`${sinTildes(columna)} ~ ${patron}`;
+}
 
 /**
  * Búsqueda de actores: una sola consulta que sirve al buscador, al mapa,
@@ -104,8 +120,12 @@ export async function buscarActores(
   }
 
   // Categoría y texto se combinan con OR: la categoría acota, el texto rescata.
-  // Un rubro cubre todas sus especialidades, propias y secundarias.
-  const idsCategoria = intencion.categoriaId ? await idsQueCubre(intencion.categoriaId) : [];
+  // Un rubro cubre todo lo que cuelga de él; un ítem, también a quien ofrece su
+  // subgrupo completo (ver `coberturaEn`).
+  const cobertura = intencion.categoriaId
+    ? await coberturaDe(intencion.categoriaId)
+    : { exactas: [], amplias: [] };
+  const idsCategoria = [...cobertura.exactas, ...cobertura.amplias];
   const alternativas: SQL[] = [];
   if (idsCategoria.length) {
     alternativas.push(
@@ -122,10 +142,12 @@ export async function buscarActores(
       ),
     );
   }
-  for (const termino of intencion.terminos.slice(0, 4)) {
-    const patron = `%${termino}%`;
-    alternativas.push(ilike(perfiles.nombre, patron));
-    alternativas.push(ilike(sql`coalesce(${perfiles.descripcion}, '')`, patron));
+  for (const termino of intencion.terminos.filter((t) => /[a-z0-9]/i.test(t)).slice(0, 4)) {
+    const patron = inicioDePalabra(termino);
+    alternativas.push(calza(perfiles.nombre, patron));
+    alternativas.push(calza(perfiles.descripcion, patron));
+    // Lo que escribió en «Otro» también lo hace encontrable (S11).
+    alternativas.push(textoPropioCoincide(sinTildes, patron));
     alternativas.push(
       exists(
         db
@@ -135,10 +157,7 @@ export async function buscarActores(
           .where(
             and(
               eq(perfilCategorias.perfilId, perfiles.id),
-              or(
-                ilike(categorias.nombre, patron),
-                ilike(sql`coalesce(${categorias.oficio}, '')`, patron),
-              ),
+              calza(categorias.nombre, patron),
             ),
           ),
       ),
@@ -154,7 +173,7 @@ export async function buscarActores(
             and(
               eq(items.perfilId, perfiles.id),
               eq(items.activo, true),
-              or(ilike(items.nombre, patron), ilike(sql`coalesce(${items.descripcion}, '')`, patron)),
+              or(calza(items.nombre, patron), calza(items.descripcion, patron)),
             ),
           ),
       ),
@@ -210,7 +229,8 @@ export async function buscarActores(
       })
       .from(perfilCategorias)
       .innerJoin(categorias, eq(categorias.id, perfilCategorias.categoriaId))
-      .where(inArray(perfilCategorias.perfilId, ids)),
+      .where(inArray(perfilCategorias.perfilId, ids))
+      .orderBy(desc(perfilCategorias.principal)),
     db
       .select({ perfilId: verificaciones.perfilId })
       .from(verificaciones)
@@ -244,14 +264,12 @@ export async function buscarActores(
     const { puntaje, motivo } = puntuar({
       distancia,
       pideCategoria: Boolean(intencion.categoriaId),
-      categoriaCoincide: idsCategoria.length
-        ? cats.some((c) => idsCategoria.includes(c.id))
-        : false,
-      terminoCoincide: intencion.terminos.some(
-        (t) =>
-          fila.nombre.toLowerCase().includes(t) ||
-          (fila.descripcion ?? "").toLowerCase().includes(t) ||
-          cats.some((c) => c.nombre.toLowerCase().includes(t)),
+      categoriaCoincide: cats.some((c) => cobertura.exactas.includes(c.id)),
+      categoriaAmplia: cats.some((c) => cobertura.amplias.includes(c.id)),
+      terminoCoincide: intencion.terminos.some((t) =>
+        [fila.nombre, fila.descripcion ?? "", ...cats.map((c) => c.nombre)].some((texto) =>
+          normalizar(texto).includes(normalizar(t)),
+        ),
       ),
       disponibleAhora: fila.disponibleAhora,
       pideHoy: intencion.disponibilidad === "hoy",
@@ -266,7 +284,10 @@ export async function buscarActores(
       descripcion: textoPara(fila.descripcion, opciones.conSesion ?? false),
       direccion: textoPara(fila.direccion, opciones.conSesion ?? false),
       roles: porPerfilRoles.get(fila.id) ?? [],
-      categorias: cats,
+      // Lo que calza con la búsqueda va primero: es lo que la tarjeta muestra.
+      categorias: [...cats].sort(
+        (a, b) => Number(idsCategoria.includes(b.id)) - Number(idsCategoria.includes(a.id)),
+      ),
       verificado: verificados.has(fila.id),
       distanciaKm: distancia,
       puntaje,

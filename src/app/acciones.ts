@@ -19,7 +19,11 @@ import {
   editarItem,
   type EntradaItem,
 } from "@/lib/casos/catalogo";
-import { resolverSolicitudCategoria } from "@/lib/casos/categorias";
+import {
+  fijarIntereses,
+  resolverSolicitudCategoria,
+  type DecisionSolicitud,
+} from "@/lib/casos/categorias";
 import { contactoDe, type Contacto } from "@/lib/casos/ficha";
 import {
   completarTelefono,
@@ -192,6 +196,7 @@ export async function accionActualizarPerfil(
       otrasActividades: textos(formData, "otrasActividades"),
       coberturaIds: enteros(formData, "cobertura"),
     });
+    await fijarIntereses(perfil.id, enteros(formData, "intereses"));
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo guardar." };
   }
@@ -505,18 +510,41 @@ export async function accionResolverSolicitudCategoria(
   }
   const solicitudId = numero(formData, "solicitudId");
   if (!solicitudId) return { error: "Falta la solicitud." };
-  const descartar = texto(formData, "decision") === "descartar";
-  const categoriaId = descartar ? null : numero(formData, "categoriaId");
-  if (!descartar && !categoriaId) return { error: "Elige la especialidad que corresponde." };
+  const tipo = texto(formData, "decision");
 
+  let decision: DecisionSolicitud;
+  if (tipo === "aprobar") {
+    const subgrupoId = numero(formData, "subgrupoId");
+    if (!subgrupoId) return { error: "Elige en qué subgrupo va el ítem nuevo." };
+    decision = {
+      tipo: "aprobar",
+      nombre: texto(formData, "nombre"),
+      clase: texto(formData, "clase") === "producto" ? "producto" : "servicio",
+      subgrupoId,
+    };
+  } else if (tipo === "fusionar") {
+    const categoriaId = numero(formData, "categoriaId");
+    if (!categoriaId) return { error: "Elige el ítem que ya existe." };
+    decision = { tipo: "fusionar", categoriaId };
+  } else {
+    decision = { tipo: "rechazar" };
+  }
+
+  let resuelta: Awaited<ReturnType<typeof resolverSolicitudCategoria>>;
   try {
-    await resolverSolicitudCategoria({ solicitudId, categoriaId });
+    resuelta = await resolverSolicitudCategoria({ solicitudId, decision });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo resolver." };
   }
 
   revalidatePath("/centro-de-control");
-  return { ok: true, mensaje: descartar ? "Solicitud descartada." : "Actividad asignada." };
+  const cuantos = `${resuelta.perfiles} ${resuelta.perfiles === 1 ? "perfil" : "perfiles"}`;
+  const mensaje = {
+    aprobada: `Ítem creado. ${cuantos} ya aparece(n) bajo él.`,
+    fusionada: `Unida a un ítem existente. ${cuantos} ya aparece(n) bajo él.`,
+    rechazada: "Solicitud rechazada.",
+  }[resuelta.estado];
+  return { ok: true, mensaje };
 }
 
 export async function accionCancelarNecesidad(necesidadId: number) {

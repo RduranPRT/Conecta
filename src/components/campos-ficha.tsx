@@ -3,10 +3,7 @@
 import { useState } from "react";
 
 import { SelectorComuna, type Territorio } from "@/components/selector-comuna";
-import {
-  SelectorEspecialidades,
-  type RubroOpcion,
-} from "@/components/selector-especialidades";
+import { SelectorActividades, type RubroOpcion } from "@/components/selector-actividades";
 import { Aviso, Boton } from "@/components/ui";
 import { separarTelefono } from "@/lib/telefono";
 import { cn } from "@/lib/utils";
@@ -41,6 +38,11 @@ export const ACTIVIDADES = [
     titulo: "Producir lo que vendo",
     texto: "Campo, taller, cocina o fabricación propia.",
   },
+  {
+    valor: "partner",
+    titulo: "Colaborar como partner",
+    texto: "Alianzas, derivar clientes o trabajar en conjunto.",
+  },
 ] as const;
 
 export const ROLES_QUE_OFRECEN = ["prestador", "negocio", "proveedor", "productor"];
@@ -63,7 +65,7 @@ export type InicialFicha = {
   lng?: number | null;
 };
 
-/** Tipos de especialidad que corresponden a los roles marcados (S16). */
+/** Tipos de actividad que corresponden a los roles marcados (S16). */
 export function tiposParaRoles(roles: string[]): ("servicio" | "producto")[] {
   const tipos = new Set<"servicio" | "producto">();
   if (roles.includes("prestador")) tipos.add("servicio");
@@ -268,10 +270,10 @@ export function SeccionOferta({
       <div>
         <p className="etiqueta">Tus actividades</p>
         <p className="ayuda mb-3 mt-0">
-          Elige una o varias actividades: así apareces en las búsquedas correctas. Lo que marques
-          aquí no limita lo que puedes buscar.
+          Elige una o varias: así apareces en las búsquedas correctas. El oficio es opcional y lo
+          que marques aquí no limita lo que puedes buscar.
         </p>
-        <SelectorEspecialidades
+        <SelectorActividades
           rubros={rubros}
           inicial={inicial?.categorias}
           otrasIniciales={inicial?.otrasActividades}
@@ -312,6 +314,41 @@ export function SeccionOferta({
         />
       </div>
     </div>
+  );
+}
+
+/* ── Intereses ────────────────────────────────────────────────────────── */
+
+/** Preferencias para el feed (S19). No son oferta ni limitan búsquedas. */
+export function SeccionIntereses({
+  rubros,
+  inicial = [],
+}: {
+  rubros: RubroOpcion[];
+  inicial?: number[];
+}) {
+  return (
+    <fieldset>
+      <legend className="sr-only">Rubros que te interesan</legend>
+      <div className="flex flex-wrap gap-2">
+        {rubros.map((r) => (
+          <label
+            key={r.id}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-borde bg-superficie px-3 py-1.5 text-xs text-texto transition hover:bg-superficie2 has-[:checked]:border-marca has-[:checked]:bg-marca/10 has-[:checked]:text-marca"
+          >
+            <input
+              type="checkbox"
+              name="intereses"
+              value={r.id}
+              defaultChecked={inicial.includes(r.id)}
+              className="sr-only"
+            />
+            <span aria-hidden>{r.icono}</span>
+            {r.nombre}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

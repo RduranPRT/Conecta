@@ -12,12 +12,14 @@ import type { RolActor } from "@/db/schema";
 import { buscarEnTerritorio } from "@/lib/casos/buscar";
 import { registrarBusqueda } from "@/lib/casos/busquedas";
 import { buscarNecesidadesAbiertas } from "@/lib/casos/necesidades";
+import { buscables } from "@/lib/casos/categorias";
 import { categoriasPorId } from "@/lib/casos/perfil";
 import { opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
 import { contextoInterprete, hayModelo, interpretar } from "@/lib/ia";
 import { ROLES_QUE_OFRECEN } from "@/lib/roles";
 import { obtenerPerfil } from "@/lib/sesion";
+import { sugerirCategorias } from "@/lib/taxonomia";
 import { territorioDeLaPeticion } from "@/lib/territorio-sesion";
 
 export const metadata: Metadata = { title: "Buscar" };
@@ -116,6 +118,31 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
     return `/buscar?${p.toString()}`;
   };
 
+  // «No hay oferta» y «no existe» no son lo mismo (S12).
+  const sugerencias =
+    q && !actores.length && !intencion.categoriaId
+      ? sugerirCategorias(q, await buscables())
+      : [];
+  const donde = aqui && (explorado.explicito || nombrada) ? `en ${aqui.nombre}` : "en Chile";
+  const vacio = !hayCriterio
+    ? {
+        titulo: "Escribe qué necesitas",
+        descripcion:
+          "Una palabra («gasfíter») o una frase completa («necesito un gasfíter que pueda venir hoy cerca de mí»).",
+      }
+    : intencion.categoriaNombre
+      ? {
+          titulo: `«${intencion.categoriaNombre}» sí existe en Conecta, pero todavía nadie lo ofrece ${donde}`,
+          descripcion:
+            "Publícalo como necesidad: avisamos a quien pueda resolverlo apenas aparezca.",
+        }
+      : {
+          titulo: "No reconocemos esa búsqueda",
+          descripcion: sugerencias.length
+            ? "Prueba con una de estas opciones, escríbelo de otra forma o publícalo como necesidad."
+            : "Escríbelo de otra forma, explora por área o publícalo como necesidad con tus palabras.",
+        };
+
   const titulo = q ? `«${q}»` : (intencion.categoriaNombre ?? "Buscar");
 
   return (
@@ -207,18 +234,21 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
             ))}
           </div>
         ) : (
-          <Vacio
-            titulo={hayCriterio ? "Nadie calza con esa búsqueda todavía" : "Escribe qué necesitas"}
-            descripcion={
-              hayCriterio
-                ? "Publícalo como necesidad: la plataforma avisa a quien pueda resolverlo. También puedes explorar por área."
-                : "Una palabra («gasfíter») o una frase completa («necesito un gasfíter que pueda venir hoy cerca de mí»)."
-            }
-          >
+          <Vacio titulo={vacio.titulo} descripcion={vacio.descripcion}>
+            {sugerencias.length ? (
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                <span className="text-xs text-tenue">¿Quisiste decir?</span>
+                {sugerencias.map((s) => (
+                  <Link key={s.id} href={`/buscar?categoria=${s.id}`}>
+                    <Insignia tono="marca">{s.nombre}</Insignia>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
             <div className="flex flex-wrap justify-center gap-2">
-              {q ? (
+              {hayCriterio ? (
                 <AccionConSesion
-                  href={`/publicar?tipo=necesidad&q=${encodeURIComponent(q)}`}
+                  href={`/publicar?tipo=necesidad&q=${encodeURIComponent(q || intencion.categoriaNombre || "")}`}
                   haySesion={conSesion}
                   tamano="sm"
                 >

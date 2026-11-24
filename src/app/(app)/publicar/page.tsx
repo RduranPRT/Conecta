@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Aviso, BotonEnlace, Encabezado, Tarjeta } from "@/components/ui";
-import { arbolDeRubros } from "@/lib/casos/categorias";
+import { opcionesCategoria } from "@/lib/casos/categorias";
 import { datosParaRequisitos } from "@/lib/casos/perfil";
 import { faltantesPara } from "@/lib/casos/requisitos";
 import { opcionesTerritorio } from "@/lib/casos/territorio";
@@ -22,9 +22,9 @@ export default async function PaginaPublicar({
   const consulta = new URLSearchParams({ tipo, ...(q ? { q } : {}), ...(para ? { para } : {}) });
   const perfil = await requerirPerfil(`/publicar?${consulta}`);
 
-  const [territorio, rubros, datos] = await Promise.all([
+  const [territorio, opciones, datos] = await Promise.all([
     opcionesTerritorio(),
-    arbolDeRubros(),
+    opcionesCategoria(),
     datosParaRequisitos(perfil.id),
   ]);
   const esNecesidad = tipo === "necesidad";
@@ -77,14 +77,14 @@ export default async function PaginaPublicar({
         {esNecesidad ? (
           <FormularioNecesidad
             territorio={territorio}
-            rubros={rubros}
+            opciones={opciones}
             comunaPorDefecto={perfil.comunaId}
             textoInicial={q}
           />
         ) : (
           <FormularioPublicacion
             territorio={territorio}
-            rubros={rubros}
+            opciones={opciones}
             comunaPorDefecto={perfil.comunaId}
             tipoInicial={tipo === "necesidad" ? "oferta" : tipo}
           />

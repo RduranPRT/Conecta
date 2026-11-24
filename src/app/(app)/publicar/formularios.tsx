@@ -8,18 +8,18 @@ import {
   type EstadoAccion,
 } from "@/app/acciones";
 import { SelectorComuna, type Territorio } from "@/components/selector-comuna";
-import { SelectCategoria, type RubroOpcion } from "@/components/selector-especialidades";
+import { SelectorCategoria, type OpcionCategoria } from "@/components/selector-categoria";
 import { Aviso, Boton } from "@/components/ui";
 
 type Props = {
   territorio: Territorio;
-  rubros: RubroOpcion[];
+  opciones: OpcionCategoria[];
   comunaPorDefecto: number | null;
 };
 
 export function FormularioNecesidad({
   territorio,
-  rubros,
+  opciones,
   comunaPorDefecto,
   textoInicial,
 }: Props & { textoInicial?: string }) {
@@ -72,7 +72,10 @@ export function FormularioNecesidad({
           <label className="etiqueta" htmlFor="categoriaId">
             Categoría (opcional)
           </label>
-          <SelectCategoria rubros={rubros} vacia="Que la deduzca la plataforma" />
+          <SelectorCategoria
+            opciones={opciones}
+            placeholder="Que la deduzca la plataforma"
+          />
         </div>
 
         <div>
@@ -124,7 +127,7 @@ export function FormularioNecesidad({
 
 export function FormularioPublicacion({
   territorio,
-  rubros,
+  opciones,
   comunaPorDefecto,
   tipoInicial = "oferta",
 }: Props & { tipoInicial?: string }) {
@@ -180,7 +183,7 @@ export function FormularioPublicacion({
           <label className="etiqueta" htmlFor="categoriaId">
             Categoría
           </label>
-          <SelectCategoria rubros={rubros} />
+          <SelectorCategoria opciones={opciones} />
         </div>
       </div>
 

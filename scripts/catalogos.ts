@@ -7,12 +7,21 @@
  */
 import "dotenv/config";
 
-import { and, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 
 import { db } from "../src/db";
-import { agentes, categoriaRubros, categorias, comunas, paises, regiones } from "../src/db/schema";
+import {
+  agentes,
+  categoriaPadres,
+  categorias,
+  comunas,
+  paises,
+  regiones,
+  solicitudesCategoria,
+} from "../src/db/schema";
 
-import { AGENTES, COMUNAS, ESPECIALIDADES, REGIONES, RUBROS } from "./datos";
+import { AGENTES, COMUNAS, REGIONES } from "./datos";
+import { HOJAS, RUBROS, SUBGRUPOS } from "./seed/taxonomia";
 
 const paso = (texto: string) => console.log(`· ${texto}`);
 
@@ -75,71 +84,107 @@ export async function cargarCatalogos() {
   }
   paso(`territorio: ${REGIONES.length} regiones, ${COMUNAS.length} comunas`);
 
-  /* 2 · Taxonomía: rubros, especialidades y rubros secundarios */
+  /* 2 · Taxonomía: rubro → subgrupo → ítem, y oficios */
   const idCategoria = new Map<string, number>();
+  type Fila = typeof categorias.$inferInsert;
+  async function guardar(valores: Fila) {
+    const [fila] = await db
+      .insert(categorias)
+      .values(valores)
+      .onConflictDoUpdate({ target: categorias.slug, set: valores })
+      .returning({ id: categorias.id });
+    idCategoria.set(valores.slug, fila.id);
+    return fila.id;
+  }
+
   for (const [i, rubro] of RUBROS.entries()) {
-    const valores = {
-      slug: rubro.slug,
-      nombre: rubro.nombre,
-      tipo: "ambos" as const,
-      padreId: null,
-      icono: rubro.icono,
-      oficio: null,
-      ejemplos: rubro.ejemplos,
-      sinonimos: rubro.sinonimos,
-      orden: i,
-    };
-    const [fila] = await db
-      .insert(categorias)
-      .values(valores)
-      .onConflictDoUpdate({ target: categorias.slug, set: valores })
-      .returning();
-    idCategoria.set(rubro.slug, fila.id);
+    await guardar({ ...rubro, tipo: "ambos", nivel: "rubro", origen: "semilla", padreId: null, orden: i });
   }
 
-  for (const [i, esp] of ESPECIALIDADES.entries()) {
-    const padreId = idCategoria.get(esp.rubro);
-    if (!padreId) throw new Error(`La especialidad ${esp.slug} apunta a un rubro inexistente.`);
-    const valores = {
-      slug: esp.slug,
-      nombre: esp.nombre,
-      tipo: esp.tipo,
-      padreId,
+  const aristas: { categoriaId: number; padreId: number }[] = [];
+  const padre = (slug: string) => {
+    const id = idCategoria.get(slug);
+    if (!id) throw new Error(`La taxonomía apunta a «${slug}», que no existe.`);
+    return id;
+  };
+
+  for (const [i, s] of SUBGRUPOS.entries()) {
+    const id = await guardar({
+      slug: s.slug,
+      nombre: s.nombre,
+      tipo: s.tipo,
+      nivel: "subgrupo",
+      origen: "semilla",
+      padreId: padre(s.rubro),
       icono: null,
-      oficio: esp.oficio ?? null,
-      ejemplos: esp.ejemplos ?? null,
-      sinonimos: esp.sinonimos,
-      orden: i,
-    };
-    const [fila] = await db
-      .insert(categorias)
-      .values(valores)
-      .onConflictDoUpdate({ target: categorias.slug, set: valores })
-      .returning();
-    idCategoria.set(esp.slug, fila.id);
+      ejemplos: s.ejemplos,
+      sinonimos: s.sinonimos,
+      orden: 100 + i,
+    });
+    for (const r of [s.rubro, ...s.tambienEn]) aristas.push({ categoriaId: id, padreId: padre(r) });
   }
 
-  const relaciones = ESPECIALIDADES.flatMap((esp) =>
-    (esp.tambienEn ?? []).map((rubro) => ({
-      categoriaId: idCategoria.get(esp.slug)!,
-      rubroId: idCategoria.get(rubro)!,
-    })),
-  );
-  const idsEspecialidades = ESPECIALIDADES.map((e) => idCategoria.get(e.slug)!);
+  for (const [i, h] of HOJAS.entries()) {
+    const id = await guardar({
+      slug: h.slug,
+      nombre: h.nombre,
+      tipo: h.tipo,
+      nivel: h.nivel,
+      // Si administración lo creó antes con el mismo nombre, pasa a la semilla.
+      origen: "semilla",
+      padreId: padre(h.subgrupos[0]),
+      icono: null,
+      ejemplos: null,
+      sinonimos: h.sinonimos,
+      orden: 1000 + i,
+    });
+    for (const s of h.subgrupos) aristas.push({ categoriaId: id, padreId: padre(s) });
+  }
+
+  // Las relaciones de la semilla se reemplazan; las creadas desde
+  // administración (`origen = admin`) no se tocan.
   await db.transaction(async (tx) => {
-    await tx.delete(categoriaRubros).where(inArray(categoriaRubros.categoriaId, idsEspecialidades));
-    if (relaciones.length) await tx.insert(categoriaRubros).values(relaciones);
+    await tx
+      .delete(categoriaPadres)
+      .where(inArray(categoriaPadres.categoriaId, [...new Set(aristas.map((a) => a.categoriaId))]));
+    await tx.insert(categoriaPadres).values(aristas).onConflictDoNothing();
   });
 
-  // Una categoría que ya no está en la taxonomía (creada a mano o heredada)
-  // queda colgando del rubro de comercio en vez de aparecer como rubro suelto.
-  const slugsVigentes = [...RUBROS.map((r) => r.slug), ...ESPECIALIDADES.map((e) => e.slug)];
-  await db
+  // Una categoría sin padre que ya no está en la taxonomía (creada a mano o
+  // heredada) queda como subgrupo de Tiendas y productos, no como rubro suelto:
+  // así nadie se queda sin clasificar.
+  const huerfanas = await db
     .update(categorias)
-    .set({ padreId: idCategoria.get("rubro-comercio")! })
-    .where(and(isNull(categorias.padreId), notInArray(categorias.slug, slugsVigentes)));
+    .set({ padreId: padre("rubro-comercio"), nivel: "subgrupo" })
+    .where(
+      and(
+        isNull(categorias.padreId),
+        notInArray(categorias.slug, RUBROS.map((r) => r.slug)),
+      ),
+    )
+    .returning({ id: categorias.id });
+  if (huerfanas.length) {
+    await db
+      .insert(categoriaPadres)
+      .values(huerfanas.map((h) => ({ categoriaId: h.id, padreId: padre("rubro-comercio") })))
+      .onConflictDoNothing();
+  }
 
-  paso(`taxonomía: ${RUBROS.length} rubros, ${ESPECIALIDADES.length} especialidades`);
+  // Estados de «Otro» de la primera versión.
+  for (const [antes, ahora] of [
+    ["asignada", "fusionada"],
+    ["descartada", "rechazada"],
+  ] as const) {
+    await db
+      .update(solicitudesCategoria)
+      .set({ estado: ahora })
+      .where(eq(solicitudesCategoria.estado, antes));
+  }
+
+  const items = HOJAS.filter((h) => h.nivel === "item").length;
+  paso(
+    `taxonomía: ${RUBROS.length} rubros, ${SUBGRUPOS.length} subgrupos, ${items} ítems y ${HOJAS.length - items} oficios`,
+  );
 
   /* 3 · Catálogo de agentes */
   for (const agente of AGENTES) {

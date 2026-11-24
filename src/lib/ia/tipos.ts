@@ -25,7 +25,14 @@ export type Intencion = {
 };
 
 export type ContextoInterprete = {
-  categorias: { id: number; slug: string; nombre: string; tipo: string; sinonimos: string[] }[];
+  categorias: {
+    id: number;
+    slug: string;
+    nombre: string;
+    tipo: string;
+    nivel?: "rubro" | "subgrupo" | "item" | "oficio";
+    sinonimos: string[];
+  }[];
   comunas: { id: number; nombre: string }[];
   comunaUsuarioId?: number | null;
 };

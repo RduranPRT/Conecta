@@ -20,7 +20,7 @@ export const contextoInterprete = cache(async (comunaUsuarioId?: number | null) 
         slug: categorias.slug,
         nombre: categorias.nombre,
         tipo: categorias.tipo,
-        oficio: categorias.oficio,
+        nivel: categorias.nivel,
         sinonimos: categorias.sinonimos,
       })
       .from(categorias)
@@ -32,11 +32,7 @@ export const contextoInterprete = cache(async (comunaUsuarioId?: number | null) 
   ]);
 
   return {
-    // El oficio es un sinónimo más: «electricista» lleva a Electricidad.
-    categorias: cats.map(({ oficio, ...c }) => ({
-      ...c,
-      sinonimos: [...(c.sinonimos ?? []), ...(oficio ? [oficio] : [])],
-    })),
+    categorias: cats,
     comunas: coms,
     comunaUsuarioId: comunaUsuarioId ?? null,
   } satisfies ContextoInterprete;

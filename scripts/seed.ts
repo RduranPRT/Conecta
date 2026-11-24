@@ -81,6 +81,13 @@ async function main() {
   /* 1-3 · Territorio, taxonomía y agentes */
   const { idComuna, puntoComuna, idCategoria } = await cargarCatalogos();
 
+  // Un slug mal escrito en el seed falla aquí, no deja un perfil sin clasificar.
+  const categoria = (slug: string) => {
+    const id = idCategoria.get(slug);
+    if (!id) throw new Error(`El seed usa la categoría «${slug}», que no existe.`);
+    return id;
+  };
+
   /* 4 · Identidades con cuenta real */
   const clave = await hashPassword(CLAVE_DEMO);
   const idPerfil = new Map<string, number>();
@@ -146,7 +153,7 @@ async function main() {
         .values(
           actor.categorias.map((slug, i) => ({
             perfilId: perfil.id,
-            categoriaId: idCategoria.get(slug)!,
+            categoriaId: categoria(slug),
             principal: i === 0,
           })),
         )
@@ -196,7 +203,7 @@ async function main() {
       tipoIdentidad: prueba.tipoIdentidad,
       roles: prueba.roles,
       comunaId: idComuna.get(prueba.comuna)!,
-      categoriaIds: prueba.especialidades.map((slug) => idCategoria.get(slug)!),
+      categoriaIds: prueba.especialidades.map(categoria),
       otrasActividades: prueba.otrasActividades,
       descripcion: prueba.descripcion,
       telefono: prueba.telefono,

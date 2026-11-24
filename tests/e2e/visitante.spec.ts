@@ -20,7 +20,7 @@ test.describe("visitante sin cuenta", () => {
     await expect(page).toHaveURL(/\/buscar\?q=electricista/);
     await page.getByRole("link", { name: "Pedro Soto · Electricista" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Pedro Soto");
-    await page.getByRole("link", { name: "Instalación de tablero eléctrico" }).click();
+    await page.locator("#catalogo").getByRole("link", { name: "Instalación de tablero eléctrico" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Instalación de tablero eléctrico",
     );

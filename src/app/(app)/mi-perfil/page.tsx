@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { BotonEnlace, Encabezado, Insignia, Tarjeta } from "@/components/ui";
-import { arbolDeRubros } from "@/lib/casos/categorias";
+import { arbolDeRubros, interesesDe } from "@/lib/casos/categorias";
 import { fichaPropia } from "@/lib/casos/ficha";
 import { opcionesTerritorio, prefijoTelefonico } from "@/lib/casos/territorio";
 import { requerirPerfil } from "@/lib/sesion";
@@ -13,11 +13,12 @@ export const dynamic = "force-dynamic";
 
 export default async function PaginaMiPerfil() {
   const sesion = await requerirPerfil("/mi-perfil");
-  const [ficha, territorio, rubros, prefijo] = await Promise.all([
+  const [ficha, territorio, rubros, prefijo, intereses] = await Promise.all([
     fichaPropia(sesion.id),
     opcionesTerritorio(),
     arbolDeRubros(),
     prefijoTelefonico(sesion.comunaId),
+    interesesDe(sesion.id),
   ]);
 
   if (!ficha) return null;
@@ -50,6 +51,7 @@ export default async function PaginaMiPerfil() {
           territorio={territorio}
           rubros={rubros}
           prefijo={prefijo}
+          intereses={intereses}
           inicial={{
             nombre: ficha.nombre,
             tipoIdentidad: ficha.tipoIdentidad,

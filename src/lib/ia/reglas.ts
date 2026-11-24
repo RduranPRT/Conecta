@@ -47,11 +47,18 @@ const MARCAS_SERVICIO = ["reparar","arreglar","instalar","servicio","mantencion"
  * comuna de Pinto o que «pelota» active Lota: con 346 comunas, comparar
  * subcadenas produce falsos positivos.
  */
-function contieneFrase(texto: string, frase: string) {
+function contieneFrase(texto: string, frase: string, conPlural = false) {
   if (!frase) return false;
   const escapada = frase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9ñ])${escapada}($|[^a-z0-9ñ])`).test(texto);
+  const plural = conPlural ? "(?:s|es)?" : "";
+  return new RegExp(`(^|[^a-z0-9ñ])${escapada}${plural}($|[^a-z0-9ñ])`).test(texto);
 }
+
+/**
+ * A igual coincidencia gana lo más concreto. Un rubro solo gana si no hay nada
+ * mejor: «lavar el auto» es un lavado, no «Automotriz».
+ */
+const PESO_NIVEL = { item: 1, oficio: 1, subgrupo: 0, rubro: -6 } as const;
 
 /**
  * Intérprete determinista. Es la implementación por defecto: no cuesta, no
@@ -134,11 +141,12 @@ export function interpretarConReglas(
     for (const candidato of candidatos) {
       const c = normalizar(candidato);
       if (!c) continue;
-      const coincide = contieneFrase(texto, c);
+      const coincide = contieneFrase(texto, c, true);
       if (coincide) {
         const puntaje =
           c.length +
-          (contieneFrase(encabezado, c) ? 10 : 0) +
+          (contieneFrase(encabezado, c, true) ? 10 : 0) +
+          PESO_NIVEL[categoria.nivel ?? "subgrupo"] +
           (categoria.tipo === intencion.tipo ? 2 : 0);
         if (!mejor || puntaje > mejor.puntaje) {
           mejor = { id: categoria.id, nombre: categoria.nombre, puntaje };
