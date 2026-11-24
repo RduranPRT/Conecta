@@ -114,7 +114,8 @@ export function Avatar({
         alt={nombre}
         width={tamano}
         height={tamano}
-        className={cn("rounded-full object-cover", className)}
+        loading="lazy"
+        className={cn("shrink-0 rounded-full object-cover", className)}
         style={{ width: tamano, height: tamano }}
       />
     );

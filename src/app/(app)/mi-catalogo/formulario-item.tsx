@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 
 import {
   accionCambiarDisponibilidadItem,
+  accionEliminarItem,
   accionGuardarItem,
   type EstadoAccion,
 } from "@/app/acciones";
@@ -20,7 +21,6 @@ export type ItemInicial = {
   categoriaId: number | null;
   precio: string | null;
   unidad: string | null;
-  imagenUrl: string | null;
 };
 
 /** Alta y edición de un producto o servicio del catálogo (P07). */
@@ -40,7 +40,6 @@ export function FormularioItem({
   const [tipo, setTipo] = useState<"producto" | "servicio">(
     inicial?.tipo === "servicio" ? "servicio" : inicial ? "producto" : tipoPorDefecto,
   );
-  const [imagen, setImagen] = useState(inicial?.imagenUrl ?? "");
 
   return (
     <form action={enviar} onSubmit={sinReiniciar(enviar)} className="space-y-5">
@@ -146,37 +145,59 @@ export function FormularioItem({
         <p className="ayuda">Ayuda a que te encuentren quienes buscan por rubro.</p>
       </div>
 
-      <div>
-        <label className="etiqueta" htmlFor="imagenUrl">
-          Foto (enlace, opcional)
-        </label>
-        <input
-          id="imagenUrl"
-          name="imagenUrl"
-          type="url"
-          className="campo"
-          value={imagen}
-          onChange={(e) => setImagen(e.target.value)}
-          placeholder="https://…"
-        />
-        <p className="ayuda">
-          Pega el enlace de una foto publicada (por ejemplo, de tu Instagram o tu sitio). Pronto
-          podrás subirla directamente.
-        </p>
-        {/^https?:\/\//.test(imagen) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imagen}
-            alt="Vista previa"
-            className="mt-2 h-28 w-28 rounded-xl border border-borde object-cover"
-          />
-        ) : null}
-      </div>
-
       <Boton type="submit" className="w-full" disabled={pendiente}>
-        {pendiente ? "Guardando…" : inicial ? "Guardar cambios" : "Agregar a mi catálogo"}
+        {pendiente ? "Guardando…" : inicial ? "Guardar cambios" : "Guardar y agregar fotos"}
       </Boton>
     </form>
+  );
+}
+
+/** Elimina de verdad, con sus fotos. Pide confirmación en la misma pantalla. */
+export function BotonEliminarItem({ itemId, nombre }: { itemId: number; nombre: string }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pendiente, iniciar] = useTransition();
+
+  if (!confirmando) {
+    return (
+      <Boton type="button" variante="fantasma" tamano="sm" onClick={() => setConfirmando(true)}>
+        Eliminar de mi catálogo
+      </Boton>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-xl border border-peligro/30 bg-peligro/5 p-3">
+      <p className="text-sm text-texto">
+        Se eliminará «{nombre}» con sus fotos. No se puede deshacer. Si solo quieres que no se vea,
+        usa «Retirar».
+      </p>
+      <div className="flex gap-2">
+        <Boton
+          type="button"
+          variante="peligro"
+          tamano="sm"
+          disabled={pendiente}
+          onClick={() =>
+            iniciar(async () => {
+              const r = await accionEliminarItem(itemId);
+              setError(r?.error ?? null);
+            })
+          }
+        >
+          {pendiente ? "Eliminando…" : "Sí, eliminar"}
+        </Boton>
+        <Boton
+          type="button"
+          variante="secundario"
+          tamano="sm"
+          disabled={pendiente}
+          onClick={() => setConfirmando(false)}
+        >
+          Cancelar
+        </Boton>
+      </div>
+      {error ? <Aviso tono="peligro">{error}</Aviso> : null}
+    </div>
   );
 }
 

@@ -20,6 +20,7 @@ import { textoPara } from "@/lib/privacidad";
 
 import { actividadesPropias } from "./categorias";
 import { registrarEvento } from "./eventos";
+import { imagenesDeItem } from "./imagenes";
 
 /**
  * Proyección pública (D5). Las columnas se nombran una a una: lo que no está
@@ -229,6 +230,7 @@ export async function itemPublico(slug: string, itemId: number, conSesion: boole
     .limit(1);
   if (!fila) return null;
   return {
+    fotos: await imagenesDeItem(itemId),
     item: itemPara(fila.item, conSesion),
     perfil: { ...fila.perfil, nombre: textoPara(fila.perfil.nombre, conSesion) },
   };

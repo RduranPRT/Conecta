@@ -5,6 +5,7 @@ import { ChevronLeft, MapPin } from "lucide-react";
 
 import { AccionConSesion } from "@/components/accion-con-sesion";
 import { EtiquetaSentido } from "@/components/etiqueta-sentido";
+import { Galeria } from "@/components/galeria";
 import { Avatar, Insignia, Tarjeta } from "@/components/ui";
 import { itemPublico } from "@/lib/casos/ficha";
 import { monto } from "@/lib/formato";
@@ -31,7 +32,7 @@ export default async function PaginaItem({ params }: { params: Params }) {
   const yo = await obtenerPerfil();
   const datos = await cargar(params, Boolean(yo));
   if (!datos) notFound();
-  const { item, perfil } = datos;
+  const { item, perfil, fotos } = datos;
   const esMio = yo?.id === perfil.id;
 
   return (
@@ -45,7 +46,9 @@ export default async function PaginaItem({ params }: { params: Params }) {
       </Link>
 
       <Tarjeta className="overflow-hidden">
-        {item.imagenUrl ? (
+        {fotos.length ? (
+          <Galeria fotos={fotos} nombre={item.nombre} />
+        ) : item.imagenUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.imagenUrl} alt={item.nombre} className="max-h-96 w-full object-cover" />
         ) : null}

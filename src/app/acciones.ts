@@ -26,6 +26,15 @@ import {
 } from "@/lib/casos/categorias";
 import { contactoDe, type Contacto } from "@/lib/casos/ficha";
 import {
+  agregarFotoItem,
+  eliminarFotoItem,
+  eliminarItem,
+  fijarFotoPerfil,
+  marcarPrincipal,
+  moverFoto,
+  quitarFotoPerfil,
+} from "@/lib/casos/imagenes";
+import {
   completarDatos,
   crearPerfil,
   fijarDisponibilidad,
@@ -602,6 +611,64 @@ export async function accionCancelarNecesidad(necesidadId: number) {
   revalidatePath(`/necesidades/${necesidadId}`);
 }
 
+/* ── Fotos ─────────────────────────────────────────────────────────────── */
+
+async function archivoDe(formData: FormData) {
+  const foto = formData.get("foto");
+  if (!(foto instanceof File) || !foto.size) throw new Error("Elige una foto.");
+  return Buffer.from(await foto.arrayBuffer());
+}
+
+/** Ejecuta un cambio de fotos, revalida lo que las muestra y explica el error. */
+async function conFotos(
+  tarea: (perfilId: number) => Promise<void>,
+): Promise<EstadoAccion> {
+  const perfil = await obtenerPerfil();
+  if (!perfil) return { error: "Tu sesión expiró. Vuelve a ingresar." };
+  try {
+    await tarea(perfil.id);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar la foto." };
+  }
+  revalidatePath("/mi-perfil");
+  revalidatePath("/bienvenida");
+  revalidatePath("/mi-catalogo", "layout");
+  revalidatePath(`/p/${perfil.slug}`, "layout");
+  return { ok: true };
+}
+
+export async function accionSubirFotoPerfil(formData: FormData) {
+  return conFotos(async (perfilId) => fijarFotoPerfil(perfilId, await archivoDe(formData)));
+}
+
+export async function accionQuitarFotoPerfil() {
+  return conFotos(quitarFotoPerfil);
+}
+
+export async function accionSubirFotoItem(itemId: number, formData: FormData) {
+  return conFotos(async (perfilId) =>
+    agregarFotoItem(perfilId, itemId, await archivoDe(formData)),
+  );
+}
+
+export async function accionMarcarPrincipal(imagenId: number) {
+  return conFotos((perfilId) => marcarPrincipal(perfilId, imagenId));
+}
+
+export async function accionMoverFoto(imagenId: number, sentido: -1 | 1) {
+  return conFotos((perfilId) => moverFoto(perfilId, imagenId, sentido < 0 ? -1 : 1));
+}
+
+export async function accionEliminarFoto(imagenId: number) {
+  return conFotos((perfilId) => eliminarFotoItem(perfilId, imagenId));
+}
+
+export async function accionEliminarItem(itemId: number): Promise<EstadoAccion> {
+  const r = await conFotos((perfilId) => eliminarItem(perfilId, itemId));
+  if (r.error) return r;
+  redirect("/mi-catalogo");
+}
+
 /* ── Catálogo de productos y servicios ─────────────────────────────────── */
 
 function entradaItem(formData: FormData): EntradaItem {
@@ -612,7 +679,6 @@ function entradaItem(formData: FormData): EntradaItem {
     categoriaId: numero(formData, "categoriaId"),
     precio: numero(formData, "precio"),
     unidad: texto(formData, "unidad") || null,
-    imagenUrl: texto(formData, "imagenUrl") || null,
   };
 }
 
@@ -623,16 +689,18 @@ export async function accionGuardarItem(
   const perfil = await perfilOFalla();
   const itemId = numero(formData, "itemId");
 
+  let nuevoId: number | null = null;
   try {
     if (itemId) await editarItem(perfil.id, itemId, entradaItem(formData));
-    else await crearItem(perfil.id, entradaItem(formData));
+    else nuevoId = (await crearItem(perfil.id, entradaItem(formData))).id;
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo guardar." };
   }
 
   revalidatePath("/mi-catalogo");
-  revalidatePath(`/p/${perfil.slug}`);
-  redirect("/mi-catalogo");
+  revalidatePath(`/p/${perfil.slug}`, "layout");
+  // Recién creado: sigue con las fotos.
+  redirect(nuevoId ? `/mi-catalogo/${nuevoId}?nuevo=1` : "/mi-catalogo");
 }
 
 export async function accionCambiarDisponibilidadItem(itemId: number, activo: boolean) {

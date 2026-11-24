@@ -441,6 +441,38 @@ export const items = pgTable(
   (t) => [index("items_perfil_idx").on(t.perfilId), index("items_categoria_idx").on(t.categoriaId)],
 );
 
+/**
+ * Fotos (N01, N02). Sin `itemId` es la foto del perfil. El archivo vive en el
+ * almacenamiento; aquí quedan sus claves. `perfiles.avatarUrl` e
+ * `items.imagenUrl` guardan la miniatura principal ya resuelta.
+ */
+export const imagenes = pgTable(
+  "imagenes",
+  {
+    id: serial("id").primaryKey(),
+    /** Quien administra: único que puede cambiarla. */
+    perfilId: integer("perfil_id")
+      .notNull()
+      .references(() => perfiles.id, { onDelete: "cascade" }),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "cascade" }),
+    orden: integer("orden").notNull().default(0),
+    esPrincipal: boolean("es_principal").notNull().default(false),
+    claveDetalle: text("clave_detalle").notNull(),
+    claveMiniatura: text("clave_miniatura").notNull(),
+    ancho: integer("ancho").notNull(),
+    alto: integer("alto").notNull(),
+    autorPerfilId: integer("autor_perfil_id").references(() => perfiles.id, {
+      onDelete: "set null",
+    }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("imagenes_item_idx").on(t.itemId),
+    uniqueIndex("imagenes_principal_uq").on(t.itemId).where(sql`es_principal and item_id is not null`),
+    uniqueIndex("imagenes_perfil_uq").on(t.perfilId).where(sql`item_id is null`),
+  ],
+);
+
 /* ────────────────────────────────────────────────────────────────────────────
  * Necesidades · Descubrimiento → Interacción → Oportunidad → Operación
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -910,6 +942,7 @@ export type Publicacion = typeof publicaciones.$inferSelect;
 export type Operacion = typeof operaciones.$inferSelect;
 export type Comuna = typeof comunas.$inferSelect;
 export type Categoria = typeof categorias.$inferSelect;
+export type Imagen = typeof imagenes.$inferSelect;
 export type SolicitudCategoria = typeof solicitudesCategoria.$inferSelect;
 export type TipoIdentidad = (typeof tipoIdentidadEnum.enumValues)[number];
 export type RolActor = (typeof rolActorEnum.enumValues)[number];

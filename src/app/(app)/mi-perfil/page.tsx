@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { FotoPerfil } from "@/components/cargador-fotos";
 import { BotonEnlace, Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { arbolDeRubros, interesesDe } from "@/lib/casos/categorias";
 import { fichaPropia } from "@/lib/casos/ficha";
@@ -45,6 +46,10 @@ export default async function PaginaMiPerfil() {
         <Insignia tono="contorno">
           {ficha.operacionesCompletadas} operación(es) como proveedor
         </Insignia>
+      </Tarjeta>
+
+      <Tarjeta className="p-5">
+        <FotoPerfil nombre={ficha.nombre} url={ficha.avatarUrl} />
       </Tarjeta>
 
       <Tarjeta className="p-5 sm:p-6">

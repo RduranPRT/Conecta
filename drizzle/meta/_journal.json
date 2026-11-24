@@ -43,6 +43,13 @@
       "when": 1795561679845,
       "tag": "0005_rut_unico",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795562111710,
+      "tag": "0006_imagenes",
+      "breakpoints": true
     }
   ]
 }

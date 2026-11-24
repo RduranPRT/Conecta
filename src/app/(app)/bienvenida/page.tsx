@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 
+import { FotoPerfil } from "@/components/cargador-fotos";
 import { Tarjeta } from "@/components/ui";
 import { requerirPerfil } from "@/lib/sesion";
 
@@ -36,6 +37,14 @@ export default async function PaginaBienvenida() {
           No son excluyentes: es la misma cuenta y lo puedes cambiar cuando quieras.
         </p>
         <PreguntaInicial />
+        <details className="mt-4 border-t border-borde pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-marca">
+            Agregar una foto (opcional)
+          </summary>
+          <div className="mt-3">
+            <FotoPerfil nombre={perfil.nombre} url={perfil.avatarUrl} />
+          </div>
+        </details>
       </Tarjeta>
 
       <p className="text-center">

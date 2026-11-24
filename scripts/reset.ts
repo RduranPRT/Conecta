@@ -18,6 +18,7 @@ const TABLAS = [
   "conversacion_participantes",
   "conversaciones",
   "necesidades",
+  "imagenes",
   "items",
   "solicitudes_categoria",
   "verificaciones",
