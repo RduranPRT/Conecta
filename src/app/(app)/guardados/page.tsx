@@ -20,7 +20,7 @@ export default async function PaginaGuardados() {
       />
 
       {items.length ? (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {items.map((item) => (
             <TarjetaPublicacion
               key={item.publicacion.id}

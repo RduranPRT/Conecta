@@ -99,7 +99,7 @@ export default async function PaginaDescubrir({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {publicaciones.length ? (
             publicaciones.map((p) => (
               <TarjetaPublicacion

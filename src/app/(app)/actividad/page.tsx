@@ -191,7 +191,7 @@ export default async function PaginaActividad({
 
       {vista === "operaciones" ? (
         actividad.misOperaciones.length ? (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {actividad.misOperaciones.map((o) => (
               <Tarjeta key={o.operacion.id} className="p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">

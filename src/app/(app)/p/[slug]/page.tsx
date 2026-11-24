@@ -243,7 +243,7 @@ export default async function PaginaPerfil({
       {publicaciones.length ? (
         <section>
           <Encabezado nivel={2} titulo="Publicaciones" />
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {publicaciones.map(({ publicacion, categoriaNombre, comunaNombre }) => (
               <TarjetaPublicacion
                 key={publicacion.id}

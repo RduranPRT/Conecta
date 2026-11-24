@@ -150,7 +150,7 @@ export default async function PaginaInicio() {
           </Link>
         </div>
         {destacadas.length ? (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {destacadas.map((p) => (
               <TarjetaDestacada
                 key={p.publicacion.id}
@@ -188,7 +188,7 @@ export default async function PaginaInicio() {
             bajada="Necesidades publicadas que calzan con lo que ofreces y tu zona."
           />
           {oportunidades.length ? (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {oportunidades.map(({ invitacion, necesidad, comunaNombre, yaPropuso }) => (
                 <Link
                   key={invitacion.id}
@@ -231,7 +231,7 @@ export default async function PaginaInicio() {
       {misAbiertas.length ? (
         <section>
           <Encabezado nivel={2} titulo="Tus necesidades" />
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {misAbiertas.slice(0, 4).map(({ necesidad, propuestas, comunaNombre }) => (
               <Link
                 key={necesidad.id}

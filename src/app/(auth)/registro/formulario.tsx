@@ -71,7 +71,7 @@ export function FormularioRegistro({ next }: { next: string }) {
         <CampoRut ayuda="Para que cada cuenta sea de alguien real. No se muestra." inicial={estado?.valores?.rut} />
       </div>
 
-      <div className="sticky bottom-0 -mx-5 mt-4 space-y-3 border-t border-borde bg-superficie px-5 py-3 sm:-mx-8 sm:px-8">
+      <div className="sticky bottom-0 -mx-5 mt-4 space-y-3 rounded-b-2xl border-t border-borde bg-superficie px-5 py-3 sm:-mx-8 sm:-mb-8 sm:px-8">
         {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
         <Boton type="submit" className="w-full" disabled={pendiente}>
           {pendiente ? "Creando tu cuenta…" : "Crear mi cuenta"}
