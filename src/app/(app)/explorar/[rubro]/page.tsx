@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { AccionConSesion } from "@/components/accion-con-sesion";
 import { BotonEnlace, Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { rubroPorSlug } from "@/lib/casos/categorias";
+import { obtenerPerfil } from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,7 @@ export async function generateMetadata({
  */
 export default async function PaginaRubro({ params }: { params: Promise<{ rubro: string }> }) {
   const { rubro } = await params;
-  const datos = await rubroPorSlug(rubro);
+  const [datos, perfil] = await Promise.all([rubroPorSlug(rubro), obtenerPerfil()]);
   if (!datos) notFound();
 
   return (
@@ -69,9 +71,14 @@ export default async function PaginaRubro({ params }: { params: Promise<{ rubro:
 
       <p className="text-center text-xs text-tenue">
         ¿No ves lo que buscas?{" "}
-        <Link href="/publicar?tipo=necesidad" className="font-medium text-marca hover:underline">
+        <AccionConSesion
+          sinEstilo
+          href="/publicar?tipo=necesidad"
+          haySesion={Boolean(perfil)}
+          className="font-medium text-marca hover:underline"
+        >
           Publícalo como necesidad
-        </Link>{" "}
+        </AccionConSesion>{" "}
         y te avisamos a quienes pueden resolverlo.
       </p>
     </div>

@@ -3,9 +3,10 @@ import { Suspense } from "react";
 import { MapPin } from "lucide-react";
 
 import { accionSalir } from "@/app/acciones";
-import { BuscadorRapido } from "@/components/buscador-rapido";
+import { EnlacesIngreso } from "@/components/accion-con-sesion";
+import { BuscadorEncabezado } from "@/components/buscador-rapido";
 import { InterruptorDisponibilidad } from "@/components/interruptor-disponibilidad";
-import { Avatar, BotonEnlace } from "@/components/ui";
+import { Avatar } from "@/components/ui";
 import { obtenerPerfil, puedeOfrecer } from "@/lib/sesion";
 
 export function Marca({ compacta = false }: { compacta?: boolean }) {
@@ -26,12 +27,12 @@ export async function EncabezadoApp() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-borde bg-superficie/85 backdrop-blur">
-      <div className="contenedor flex h-16 items-center gap-3">
+      <div className="contenedor flex h-14 items-center gap-3 sm:h-16">
         <Marca />
 
         <div className="mx-auto hidden w-full max-w-xl md:block">
           <Suspense fallback={<div className="h-10" />}>
-            <BuscadorRapido />
+            <BuscadorEncabezado />
           </Suspense>
         </div>
 
@@ -63,23 +64,16 @@ export async function EncabezadoApp() {
               </form>
             </>
           ) : (
-            <>
-              <BotonEnlace href="/ingresar" variante="fantasma" tamano="sm">
-                Ingresar
-              </BotonEnlace>
-              <BotonEnlace href="/registro" tamano="sm">
-                Crear cuenta
-              </BotonEnlace>
-            </>
+            <Suspense fallback={null}>
+              <EnlacesIngreso />
+            </Suspense>
           )}
         </div>
       </div>
 
-      <div className="contenedor pb-3 md:hidden">
-        <Suspense fallback={<div className="h-10" />}>
-          <BuscadorRapido />
-        </Suspense>
-      </div>
+      <Suspense fallback={null}>
+        <BuscadorEncabezado className="contenedor pb-3 md:hidden" />
+      </Suspense>
     </header>
   );
 }

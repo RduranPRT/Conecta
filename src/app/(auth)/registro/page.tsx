@@ -1,11 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import { destinoSeguro, rutaIngreso } from "@/lib/destino";
+import { obtenerPerfil } from "@/lib/sesion";
 
 import { FormularioRegistro } from "./formulario";
 
 export const metadata: Metadata = { title: "Crear cuenta" };
 
-export default function PaginaRegistro() {
+export const dynamic = "force-dynamic";
+
+export default async function PaginaRegistro({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const retorno = destinoSeguro((await searchParams).next);
+  const perfil = await obtenerPerfil();
+  if (perfil) redirect(retorno);
+
   return (
     <div className="tarjeta p-6 sm:p-8">
       <h1 className="text-xl font-semibold text-texto">Crea tu cuenta</h1>
@@ -21,12 +35,12 @@ export default function PaginaRegistro() {
       </ol>
 
       <div className="mt-6">
-        <FormularioRegistro />
+        <FormularioRegistro next={retorno} />
       </div>
 
       <p className="mt-6 text-center text-sm text-tenue">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/ingresar" className="font-medium text-marca hover:underline">
+        <Link href={rutaIngreso(retorno)} className="font-medium text-marca hover:underline">
           Ingresa
         </Link>
         {" · "}

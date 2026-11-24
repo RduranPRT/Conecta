@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { accionRegistro, type EstadoAccion } from "@/app/acciones";
 import { Aviso, Boton } from "@/components/ui";
 
-export function FormularioRegistro() {
+export function FormularioRegistro({ next }: { next: string }) {
   const [estado, enviar, pendiente] = useActionState<EstadoAccion, FormData>(
     accionRegistro,
     {},
@@ -14,6 +14,8 @@ export function FormularioRegistro() {
   return (
     <form action={enviar} className="space-y-4">
       {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
+
+      <input type="hidden" name="next" value={next} />
 
       <div>
         <label className="etiqueta" htmlFor="nombre">

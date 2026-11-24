@@ -14,6 +14,7 @@ import {
   type RolActor,
 } from "@/db/schema";
 import { distanciaKm } from "@/lib/geo";
+import { textoPara } from "@/lib/privacidad";
 import { idsQueCubre } from "./categorias";
 import { puntuar } from "./puntaje";
 import type { Intencion } from "@/lib/ia";
@@ -52,6 +53,8 @@ type Opciones = {
   /** Restringe a estos roles aunque la intención no los mencione. */
   roles?: RolActor[];
   comunaId?: number | null;
+  /** Sin sesión, los textos libres salen sin teléfonos, correos ni redes. */
+  conSesion?: boolean;
 };
 
 /**
@@ -259,6 +262,9 @@ export async function buscarActores(
 
     return {
       ...fila,
+      nombre: textoPara(fila.nombre, opciones.conSesion ?? false),
+      descripcion: textoPara(fila.descripcion, opciones.conSesion ?? false),
+      direccion: textoPara(fila.direccion, opciones.conSesion ?? false),
       roles: porPerfilRoles.get(fila.id) ?? [],
       categorias: cats,
       verificado: verificados.has(fila.id),

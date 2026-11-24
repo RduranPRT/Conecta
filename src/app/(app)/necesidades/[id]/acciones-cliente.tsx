@@ -80,7 +80,10 @@ export function FormularioPropuesta({
   moneda,
   propuestaPrevia,
   pedirTelefono,
+  enfocar = false,
 }: {
+  /** Venía a cotizar y acaba de ingresar: se abre donde estaba. */
+  enfocar?: boolean;
   necesidadId: number;
   moneda: string;
   propuestaPrevia?: { monto: string; plazoDias: number; mensaje: string | null } | null;
@@ -109,6 +112,7 @@ export function FormularioPropuesta({
             inputMode="numeric"
             className="campo"
             required
+            autoFocus={enfocar}
             defaultValue={propuestaPrevia?.monto ?? ""}
             placeholder="45000"
           />

@@ -17,6 +17,7 @@ import { comunaMasCercana } from "@/lib/casos/perfil";
 import { comunaPiloto, opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
 import { contextoInterprete, interpretar } from "@/lib/ia";
+import { ROLES_QUE_OFRECEN } from "@/lib/roles";
 import { obtenerPerfil } from "@/lib/sesion";
 import type { RolActor } from "@/db/schema";
 
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
 const FILTROS_ROL: { valor: RolActor | "todos"; etiqueta: string; emoji: string }[] = [
   { valor: "todos", etiqueta: "Todos", emoji: "📍" },
   { valor: "prestador", etiqueta: "Prestadores", emoji: "🔧" },
-  { valor: "negocio", etiqueta: "Negocios", emoji: "🏪" },
+  { valor: "negocio", etiqueta: "Comercios", emoji: "🏪" },
   { valor: "proveedor", etiqueta: "Proveedores", emoji: "📦" },
   { valor: "productor", etiqueta: "Productores", emoji: "🌾" },
 ];
@@ -81,9 +82,10 @@ export default async function PaginaMapa({
 
   const actores = await buscarActores(intencion, {
     desde,
-    roles: rol !== "todos" ? [rol as RolActor] : ["prestador", "negocio", "proveedor", "productor"],
+    roles: (ROLES_QUE_OFRECEN as string[]).includes(rol) ? [rol as RolActor] : ROLES_QUE_OFRECEN,
     limite: 120,
     soloConUbicacion: true,
+    conSesion: Boolean(perfil),
   });
 
   let centro: { lat: number; lng: number } = { lat: -33.45, lng: -70.66 };

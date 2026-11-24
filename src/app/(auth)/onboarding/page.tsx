@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { destinoSeguro, rutaIngreso } from "@/lib/destino";
 import { arbolDeRubros } from "@/lib/casos/categorias";
 import { opcionesTerritorio } from "@/lib/casos/territorio";
 import { obtenerPerfil, obtenerSesion } from "@/lib/sesion";
@@ -10,12 +11,17 @@ import { FormularioPerfil } from "./formulario";
 export const metadata: Metadata = { title: "Arma tu perfil" };
 export const dynamic = "force-dynamic";
 
-export default async function PaginaOnboarding() {
+export default async function PaginaOnboarding({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const retorno = destinoSeguro((await searchParams).next);
   const sesion = await obtenerSesion();
-  if (!sesion) redirect("/ingresar");
+  if (!sesion) redirect(rutaIngreso(retorno));
 
   const perfil = await obtenerPerfil();
-  if (perfil) redirect("/inicio");
+  if (perfil) redirect(retorno);
 
   const [territorio, rubros] = await Promise.all([opcionesTerritorio(), arbolDeRubros()]);
 
@@ -31,6 +37,7 @@ export default async function PaginaOnboarding() {
         <FormularioPerfil
           territorio={territorio}
           rubros={rubros}
+          next={retorno}
           nombreSugerido={sesion.user.name ?? ""}
         />
       </div>

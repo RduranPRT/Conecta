@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Home, LogIn, Map, UserCircle2 } from "lucide-react";
+import { Home, Map, UserCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -13,25 +13,17 @@ import { cn } from "@/lib/utils";
  * Publicar, Mensajes, Actividad, Asistente, Agentes, Mi perfil) no
  * desaparecen: se alcanzan desde Inicio o desde el hub de Mi Conecta. La
  * misma lista alimenta la barra lateral en escritorio y la barra inferior
- * en teléfono: una sola definición, dos formas.
+ * en teléfono: una sola definición, dos formas. El visitante ve los mismos
+ * tres accesos (N03); Mi Conecta le pide ingresar.
  */
 export const NAVEGACION = [
-  { href: "/inicio", etiqueta: "Inicio", icono: Home, movil: true },
+  { href: "/", etiqueta: "Inicio", icono: Home, movil: true },
   { href: "/mapa", etiqueta: "Mapa", icono: Map, movil: true },
   { href: "/mi-conecta", etiqueta: "Mi Conecta", icono: UserCircle2, movil: true },
 ] as const;
 
-/**
- * Sin cuenta también se navega (S02): explorar rubros, el mapa y entrar. Las
- * pestañas que exigen identidad no se muestran para no rebotar al login.
- */
-export const NAVEGACION_PUBLICA = [
-  { href: "/explorar", etiqueta: "Explorar", icono: Compass, movil: true },
-  { href: "/mapa", etiqueta: "Mapa", icono: Map, movil: true },
-  { href: "/ingresar", etiqueta: "Ingresar", icono: LogIn, movil: true },
-] as const;
-
 function activo(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -54,19 +46,13 @@ function activoConGrupo(pathname: string, href: string) {
   return activo(pathname, href);
 }
 
-export function NavLateral({
-  sinLeer = 0,
-  conPerfil = true,
-}: {
-  sinLeer?: number;
-  conPerfil?: boolean;
-}) {
+export function NavLateral({ sinLeer = 0 }: { sinLeer?: number }) {
   const pathname = usePathname();
 
   return (
     <nav className="hidden w-56 shrink-0 lg:block">
       <ul className="sticky top-20 space-y-0.5">
-        {(conPerfil ? NAVEGACION : NAVEGACION_PUBLICA).map(({ href, etiqueta, icono: Icono }) => {
+        {NAVEGACION.map(({ href, etiqueta, icono: Icono }) => {
           const esActivo = activoConGrupo(pathname, href);
           return (
             <li key={href}>
@@ -95,19 +81,13 @@ export function NavLateral({
   );
 }
 
-export function NavInferior({
-  sinLeer = 0,
-  conPerfil = true,
-}: {
-  sinLeer?: number;
-  conPerfil?: boolean;
-}) {
+export function NavInferior({ sinLeer = 0 }: { sinLeer?: number }) {
   const pathname = usePathname();
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-borde bg-superficie/95 backdrop-blur lg:hidden">
       <ul className="mx-auto flex max-w-lg items-stretch justify-between px-2 pb-[env(safe-area-inset-bottom)]">
-        {(conPerfil ? NAVEGACION : NAVEGACION_PUBLICA).map(({ href, etiqueta, icono: Icono }) => {
+        {NAVEGACION.map(({ href, etiqueta, icono: Icono }) => {
           const esActivo = activoConGrupo(pathname, href);
           return (
             <li key={href} className="flex-1">

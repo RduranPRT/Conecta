@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { MapPin, Sparkles, X } from "lucide-react";
 
+import { EtiquetaSentido } from "@/components/etiqueta-sentido";
 import { Mapa, type PuntoMapa } from "@/components/mapa";
 import { SelectorComuna } from "@/components/selector-comuna";
 import { TarjetaActor } from "@/components/tarjeta-actor";
+import { AccionConSesion } from "@/components/accion-con-sesion";
 import { BotonEnlace, Insignia, Tarjeta, Vacio } from "@/components/ui";
 import type { RolActor } from "@/db/schema";
 import { buscarActores } from "@/lib/casos/actores";
@@ -14,6 +16,7 @@ import { buscarNecesidadesAbiertas } from "@/lib/casos/necesidades";
 import { comunaPiloto, opcionesTerritorio, ubicacionDeComuna } from "@/lib/casos/territorio";
 import { formatearDistancia } from "@/lib/geo";
 import { contextoInterprete, hayModelo, interpretar } from "@/lib/ia";
+import { ROLES_QUE_OFRECEN } from "@/lib/roles";
 import { obtenerPerfil } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Buscar" };
@@ -56,12 +59,18 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
   }
 
   const desde = perfil?.lat && perfil?.lng ? { lat: perfil.lat, lng: perfil.lng } : null;
-  const roles = rol !== "todos" ? [rol as RolActor] : undefined;
-  const hayCriterio = Boolean(q || intencion.categoriaId || intencion.comunaId || roles);
+  // Quien solo compra no aparece: no ofrece nada y su ubicación sería su casa.
+  const filtraRol = (ROLES_QUE_OFRECEN as string[]).includes(rol);
+  const roles = filtraRol
+    ? [rol as RolActor]
+    : intencion.roles.filter((r) => ROLES_QUE_OFRECEN.includes(r)).length
+      ? intencion.roles.filter((r) => ROLES_QUE_OFRECEN.includes(r))
+      : ROLES_QUE_OFRECEN;
+  const hayCriterio = Boolean(q || intencion.categoriaId || intencion.comunaId || filtraRol);
 
   const [actores, necesidadesRelacionadas, territorio, ubicacion] = await Promise.all([
-    hayCriterio ? buscarActores(intencion, { desde, limite: 30, roles }) : Promise.resolve([]),
-    q || intencion.categoriaId ? buscarNecesidadesAbiertas(intencion) : Promise.resolve([]),
+    hayCriterio ? buscarActores(intencion, { desde, limite: 30, roles, conSesion: Boolean(perfil) }) : Promise.resolve([]),
+    q || intencion.categoriaId ? buscarNecesidadesAbiertas(intencion, { conSesion: Boolean(perfil) }) : Promise.resolve([]),
     opcionesTerritorio(),
     ubicacionDeComuna(intencion.comunaId),
   ]);
@@ -226,9 +235,13 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
           >
             <div className="flex flex-wrap justify-center gap-2">
               {q ? (
-                <BotonEnlace href={`/publicar?q=${encodeURIComponent(q)}`} tamano="sm">
+                <AccionConSesion
+                  href={`/publicar?tipo=necesidad&q=${encodeURIComponent(q)}`}
+                  haySesion={Boolean(perfil)}
+                  tamano="sm"
+                >
                   Publicar como necesidad
-                </BotonEnlace>
+                </AccionConSesion>
               ) : null}
               <BotonEnlace href="/explorar" variante="secundario" tamano="sm">
                 Explorar por área
@@ -248,17 +261,17 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
         <section className="pt-2">
           <h2 className="titulo-seccion mb-3">Pedidos abiertos relacionados</h2>
           <Tarjeta className="divide-y divide-borde">
-            {necesidadesRelacionadas.map(({ necesidad, solicitanteNombre, comunaNombre }) => (
+            {necesidadesRelacionadas.map((necesidad) => (
               <Link
                 key={necesidad.id}
                 href={`/necesidades/${necesidad.id}`}
                 className="flex items-center gap-3 px-4 py-3 transition hover:bg-superficie2"
               >
-                <Insignia tono="acento">Busca</Insignia>
+                <EtiquetaSentido tipo="necesidad" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-texto">{necesidad.titulo}</span>
                   <span className="mt-0.5 block text-xs text-tenue">
-                    {solicitanteNombre} · {comunaNombre ?? "sin comuna"}
+                    {necesidad.solicitanteNombre} · {necesidad.comunaNombre ?? "sin comuna"}
                   </span>
                 </span>
               </Link>

@@ -24,6 +24,14 @@ export type PuntoMapa = {
   distancia: string | null;
 };
 
+/** El globo de Leaflet recibe HTML: los textos de la gente se escapan. */
+function escapar(texto: string) {
+  return texto.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
+
 /** Iconografía diferenciada por categoría de actor, como pide el prompt. */
 const ESTILO_ROL: Record<string, { emoji: string; color: string }> = {
   prestador: { emoji: "🔧", color: "#0f766e" },
@@ -160,8 +168,8 @@ export function Mapa({
           .join(" · ");
 
         marcador.bindPopup(
-          `<strong style="font-size:14px">${punto.nombre}</strong>` +
-            `<br><span style="opacity:.7;font-size:12px">${detalles}</span>` +
+          `<strong style="font-size:14px">${escapar(punto.nombre)}</strong>` +
+            `<br><span style="opacity:.7;font-size:12px">${escapar(detalles)}</span>` +
             `<br><a href="/p/${punto.slug}" style="color:#0f766e;font-weight:500;font-size:12px">Ver ficha completa →</a>`,
         );
       }

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TarjetaPublicacion } from "@/components/tarjeta-publicacion";
-import { BotonEnlace, Encabezado, Tarjeta, Vacio } from "@/components/ui";
+import { AccionConSesion } from "@/components/accion-con-sesion";
+import { Encabezado, Tarjeta, Vacio } from "@/components/ui";
 import { feedPara } from "@/lib/casos/feed";
 import { pulsoTerritorial } from "@/lib/casos/actividad";
 import { obtenerPerfil } from "@/lib/sesion";
@@ -49,9 +50,9 @@ export default async function PaginaDescubrir({
         titulo="Descubrir"
         bajada="Lo que se ofrece, se necesita y se mueve en tu territorio. Cada publicación termina en una acción."
         acciones={
-          <BotonEnlace href="/publicar" tamano="sm">
+          <AccionConSesion href="/publicar" haySesion={Boolean(perfil)} tamano="sm">
             Publicar
-          </BotonEnlace>
+          </AccionConSesion>
         }
       />
 
@@ -111,7 +112,7 @@ export default async function PaginaDescubrir({
                 guardada={Boolean(p.guardada)}
                 patrocinado={p.patrocinado}
                 motivo={p.motivo}
-                hayPerfil={Boolean(perfil)}
+                haySesion={Boolean(perfil)}
               />
             ))
           ) : (
@@ -119,9 +120,9 @@ export default async function PaginaDescubrir({
               titulo="El feed está vacío por ahora"
               descripcion="Publica un producto, un servicio o una necesidad y aparecerá aquí para tu territorio."
             >
-              <BotonEnlace href="/publicar" tamano="sm">
+              <AccionConSesion href="/publicar" haySesion={Boolean(perfil)} tamano="sm">
                 Publicar algo
-              </BotonEnlace>
+              </AccionConSesion>
             </Vacio>
           )}
         </div>

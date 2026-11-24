@@ -1,26 +1,16 @@
-"use client";
-
 import Link from "next/link";
-import { useTransition } from "react";
-import { Bookmark, Heart, MapPin, MessageSquare } from "lucide-react";
+import { MapPin } from "lucide-react";
 
-import { accionAlternarGuardado, accionReaccionar } from "@/app/acciones";
+import { AccionConSesion } from "@/components/accion-con-sesion";
+import { BotonGuardar, BotonReaccion } from "@/components/botones-publicacion";
+import { EtiquetaSentido } from "@/components/etiqueta-sentido";
 import { Avatar, BotonEnlace, Insignia } from "@/components/ui";
+import type { PublicacionPublica } from "@/lib/casos/feed";
 import { haceCuanto, monto as formatearMonto } from "@/lib/formato";
-import { cn } from "@/lib/utils";
+import { accionesDe, ETIQUETA_TIPO, TONO_TIPO } from "@/lib/publicaciones";
 
 type Props = {
-  publicacion: {
-    id: number;
-    tipo: string;
-    titulo: string;
-    cuerpo: string | null;
-    precio: string | null;
-    moneda: string;
-    creadoEn: Date | string;
-    necesidadId: number | null;
-    autorPerfilId: number;
-  };
+  publicacion: PublicacionPublica;
   autorNombre: string;
   autorSlug: string;
   autorAvatar: string | null;
@@ -31,75 +21,18 @@ type Props = {
   guardada: boolean;
   patrocinado: boolean;
   motivo: string;
-  hayPerfil: boolean;
+  haySesion: boolean;
 };
 
 /**
- * Toda publicación termina en una acción. El prompt lo pide explícitamente:
- * producto → comprar/cotizar/contactar; servicio → solicitar/cotizar/contactar;
- * necesidad → responder/enviar propuesta.
+ * Toda publicación termina en una acción. Con cuenta se ejecuta; sin cuenta,
+ * se explica qué falta y se vuelve al mismo punto (N03).
  */
-function acciones(tipo: string, necesidadId: number | null, autorSlug: string) {
-  switch (tipo) {
-    case "necesidad":
-      return necesidadId
-        ? [
-            { etiqueta: "Enviar propuesta", href: `/necesidades/${necesidadId}`, primario: true },
-            { etiqueta: "Ver detalle", href: `/necesidades/${necesidadId}`, primario: false },
-          ]
-        : [];
-    case "producto":
-      return [
-        { etiqueta: "Cotizar", href: `/publicar?tipo=necesidad&para=${autorSlug}`, primario: true },
-        { etiqueta: "Contactar", href: `/p/${autorSlug}#contacto`, primario: false },
-      ];
-    case "servicio":
-      return [
-        {
-          etiqueta: "Solicitar servicio",
-          href: `/publicar?tipo=necesidad&para=${autorSlug}`,
-          primario: true,
-        },
-        { etiqueta: "Contactar", href: `/p/${autorSlug}#contacto`, primario: false },
-      ];
-    case "oferta":
-    case "oportunidad":
-      return [{ etiqueta: "Me interesa", href: `/p/${autorSlug}#contacto`, primario: true }];
-    default:
-      return [{ etiqueta: "Ver perfil", href: `/p/${autorSlug}`, primario: false }];
-  }
-}
-
-const TONO_TIPO: Record<string, "marca" | "acento" | "neutro" | "exito"> = {
-  necesidad: "acento",
-  producto: "marca",
-  servicio: "marca",
-  oferta: "exito",
-  oportunidad: "exito",
-  novedad: "neutro",
-};
-
-/**
- * Dice en una palabra si alguien ofrece o busca algo (S23). El tipo detallado
- * (producto, servicio, oferta…) queda al lado.
- */
-const SENTIDO: Record<string, { etiqueta: string; tono: "marca" | "acento" | "neutro" } | null> = {
-  necesidad: { etiqueta: "Busca", tono: "acento" },
-  producto: { etiqueta: "Ofrece", tono: "marca" },
-  servicio: { etiqueta: "Ofrece", tono: "marca" },
-  oferta: { etiqueta: "Ofrece", tono: "marca" },
-  oportunidad: { etiqueta: "Ofrece", tono: "marca" },
-  novedad: null,
-};
-
-
 export function TarjetaPublicacion(props: Props) {
-  const [pendiente, iniciar] = useTransition();
   const { publicacion: p } = props;
-  const botones = acciones(p.tipo, p.necesidadId, props.autorSlug);
 
   return (
-    <article className="tarjeta p-4 sm:p-5">
+    <article id={`pub-${p.id}`} className="tarjeta scroll-mt-32 p-4 sm:p-5">
       <header className="flex items-start gap-3">
         <Avatar nombre={props.autorNombre} url={props.autorAvatar} tamano={40} />
         <div className="min-w-0 flex-1">
@@ -110,18 +43,8 @@ export function TarjetaPublicacion(props: Props) {
             >
               {props.autorNombre}
             </Link>
-            {SENTIDO[p.tipo] ? (
-              <span
-                className={
-                  SENTIDO[p.tipo]!.tono === "acento"
-                    ? "rounded-md bg-acento px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-superficie"
-                    : "rounded-md bg-marca px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-superficie"
-                }
-              >
-                {SENTIDO[p.tipo]!.etiqueta}
-              </span>
-            ) : null}
-            <Insignia tono={TONO_TIPO[p.tipo] ?? "neutro"}>{p.tipo}</Insignia>
+            <EtiquetaSentido tipo={p.tipo} />
+            <Insignia tono={TONO_TIPO[p.tipo] ?? "neutro"}>{ETIQUETA_TIPO[p.tipo] ?? p.tipo}</Insignia>
             {props.patrocinado ? <Insignia tono="alerta">Patrocinado</Insignia> : null}
           </div>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-tenue">
@@ -137,7 +60,20 @@ export function TarjetaPublicacion(props: Props) {
         </div>
       </header>
 
-      <h3 className="mt-3 text-[15px] font-medium text-texto">{p.titulo}</h3>
+      <h3 className="mt-3 text-[15px] font-medium text-texto">
+        <Link href={`/publicaciones/${p.id}`} className="hover:text-marca">
+          {p.titulo}
+        </Link>
+      </h3>
+      {p.imagenUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={p.imagenUrl}
+          alt=""
+          loading="lazy"
+          className="mt-3 max-h-72 w-full rounded-xl border border-borde object-cover"
+        />
+      ) : null}
       {p.cuerpo ? <p className="mt-1 whitespace-pre-line text-sm text-tenue">{p.cuerpo}</p> : null}
 
       {p.precio ? (
@@ -147,52 +83,37 @@ export function TarjetaPublicacion(props: Props) {
       ) : null}
 
       <footer className="mt-4 flex flex-wrap items-center gap-2">
-        {botones.map((b) => (
-          <BotonEnlace
-            key={b.etiqueta}
-            href={b.href}
-            tamano="sm"
-            variante={b.primario ? "primario" : "secundario"}
-          >
-            {b.etiqueta}
-          </BotonEnlace>
-        ))}
+        {accionesDe(p.tipo, p.necesidadId, props.autorSlug).map((a) =>
+          a.conCuenta ? (
+            <AccionConSesion
+              key={a.etiqueta}
+              href={a.href}
+              haySesion={props.haySesion}
+              tamano="sm"
+              variante={a.primario ? "primario" : "secundario"}
+            >
+              {a.etiqueta}
+            </AccionConSesion>
+          ) : (
+            <BotonEnlace
+              key={a.etiqueta}
+              href={a.href}
+              tamano="sm"
+              variante={a.primario ? "primario" : "secundario"}
+            >
+              {a.etiqueta}
+            </BotonEnlace>
+          ),
+        )}
 
         <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            disabled={!props.hayPerfil || pendiente}
-            onClick={() => iniciar(() => void accionReaccionar(p.id))}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs transition",
-              props.reaccionada ? "text-peligro" : "text-tenue hover:bg-superficie2",
-              !props.hayPerfil && "cursor-not-allowed opacity-50",
-            )}
-            aria-label="Me interesa"
-          >
-            <Heart size={14} fill={props.reaccionada ? "currentColor" : "none"} />
-            {props.reacciones}
-          </button>
-          <button
-            type="button"
-            disabled={!props.hayPerfil || pendiente}
-            onClick={() => iniciar(() => void accionAlternarGuardado(p.id))}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs transition",
-              props.guardada ? "text-marca" : "text-tenue hover:bg-superficie2",
-              !props.hayPerfil && "cursor-not-allowed opacity-50",
-            )}
-            aria-label="Guardar"
-          >
-            <Bookmark size={14} fill={props.guardada ? "currentColor" : "none"} />
-          </button>
-          <Link
-            href={`/p/${props.autorSlug}#contacto`}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-tenue transition hover:bg-superficie2"
-            aria-label="Escribir"
-          >
-            <MessageSquare size={14} />
-          </Link>
+          <BotonReaccion
+            publicacionId={p.id}
+            reacciones={props.reacciones}
+            reaccionada={props.reaccionada}
+            haySesion={props.haySesion}
+          />
+          <BotonGuardar publicacionId={p.id} guardada={props.guardada} haySesion={props.haySesion} />
         </div>
       </footer>
 

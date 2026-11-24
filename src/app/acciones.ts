@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { agentesContratados, necesidades, perfiles, verificaciones } from "@/db/schema";
+import { agentesContratados, necesidades, verificaciones } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { adjudicar, calificar, enviarPropuesta, registrarEntrega } from "@/lib/casos/propuestas";
 import { alternarReaccion, alternarSeguimiento, crearPublicacion } from "@/lib/casos/feed";
@@ -20,12 +20,14 @@ import {
   type EntradaItem,
 } from "@/lib/casos/catalogo";
 import { resolverSolicitudCategoria } from "@/lib/casos/categorias";
+import { contactoDe, type Contacto } from "@/lib/casos/ficha";
 import {
   completarTelefono,
   crearPerfil,
   fijarDisponibilidad,
   guardarFicha,
 } from "@/lib/casos/perfil";
+import { conParametros, destinoSeguro, INICIO } from "@/lib/destino";
 import { obtenerPerfil, obtenerSesion } from "@/lib/sesion";
 import type { RolActor, TipoIdentidad } from "@/db/schema";
 
@@ -97,7 +99,8 @@ export async function accionRegistro(
     return { error: mensaje.includes("exist") ? "Ya existe una cuenta con ese correo." : mensaje };
   }
 
-  redirect("/onboarding");
+  const destino = destinoSeguro(texto(formData, "next"));
+  redirect(destino === INICIO ? "/onboarding" : conParametros("/onboarding", { next: destino }));
 }
 
 export async function accionIngreso(
@@ -106,7 +109,7 @@ export async function accionIngreso(
 ): Promise<EstadoAccion> {
   const email = texto(formData, "email").toLowerCase();
   const clave = texto(formData, "clave");
-  const destino = texto(formData, "destino") || "/inicio";
+  const destino = destinoSeguro(texto(formData, "next"));
 
   if (!email || !clave) return { error: "Escribe tu correo y tu contraseña." };
 
@@ -157,7 +160,8 @@ export async function accionCrearPerfil(
     return { error: error instanceof Error ? error.message : "No se pudo crear el perfil." };
   }
 
-  redirect("/bienvenida");
+  const destino = destinoSeguro(texto(formData, "next"));
+  redirect(destino === INICIO ? "/bienvenida" : conParametros(destino, { cuenta: "lista" }));
 }
 
 export async function accionActualizarPerfil(
@@ -408,6 +412,22 @@ export async function accionContactar(
   redirect(`/mensajes/${conversacionId}`);
 }
 
+/**
+ * Datos de contacto: solo con sesión. El visitante nunca los recibe, ni
+ * ocultos: la ficha pública no los consulta.
+ */
+export async function accionVerContacto(
+  perfilId: number,
+): Promise<{ contacto?: Contacto; error?: string }> {
+  const perfil = await obtenerPerfil();
+  if (!perfil) return { error: "Inicia sesión o crea tu cuenta para continuar." };
+  try {
+    return { contacto: await contactoDe({ perfilId, solicitantePerfilId: perfil.id }) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo cargar el contacto." };
+  }
+}
+
 /* ── Agentes IA (Fase 2: se contratan y configuran, no ejecutan aún) ───── */
 
 export async function accionContratarAgente(agenteCodigo: string, nivelAutonomia: number) {
@@ -496,12 +516,6 @@ export async function accionCancelarNecesidad(necesidadId: number) {
 
   revalidatePath("/actividad");
   revalidatePath(`/necesidades/${necesidadId}`);
-}
-
-/** Usado por el buscador para dejar registro de lo que la gente pide. */
-export async function accionPerfilPorSlug(slug: string) {
-  const fila = await db.query.perfiles.findFirst({ where: eq(perfiles.slug, slug) });
-  return fila ?? null;
 }
 
 /* ── Catálogo de productos y servicios ─────────────────────────────────── */

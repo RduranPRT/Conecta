@@ -85,6 +85,7 @@ export async function responder(
   const actores = await buscarActores(intencion, {
     desde: perfil?.lat && perfil?.lng ? { lat: perfil.lat, lng: perfil.lng } : null,
     limite: 5,
+    conSesion: Boolean(perfil),
   });
 
   if (actores.length) {

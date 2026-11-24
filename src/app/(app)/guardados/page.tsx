@@ -35,7 +35,7 @@ export default async function PaginaGuardados() {
               guardada
               patrocinado={false}
               motivo="Guardado por ti"
-              hayPerfil
+              haySesion
             />
           ))}
         </div>

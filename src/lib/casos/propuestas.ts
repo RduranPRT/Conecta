@@ -329,6 +329,15 @@ export async function calificar(entrada: {
   });
 }
 
+/** Cuántas propuestas vigentes tiene una necesidad. Es lo único que ve el visitante. */
+export async function contarPropuestas(necesidadId: number) {
+  const [fila] = await db
+    .select({ total: count() })
+    .from(propuestas)
+    .where(and(eq(propuestas.necesidadId, necesidadId), ne(propuestas.estado, "retirada")));
+  return fila?.total ?? 0;
+}
+
 export async function recalcularReputacion(perfilId: number) {
   const [fila] = await db
     .select({ promedio: avg(calificaciones.puntaje), total: count() })

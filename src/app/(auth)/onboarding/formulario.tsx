@@ -31,7 +31,9 @@ export function FormularioPerfil({
   territorio,
   rubros,
   nombreSugerido,
+  next,
 }: {
+  next: string;
   territorio: Territorio;
   rubros: RubroOpcion[];
   nombreSugerido: string;
@@ -82,6 +84,7 @@ export function FormularioPerfil({
       }}
       className="space-y-6"
     >
+      <input type="hidden" name="next" value={next} />
       <div>
         <div className="flex items-center justify-between text-xs text-tenue">
           <span>

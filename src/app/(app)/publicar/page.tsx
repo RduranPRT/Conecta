@@ -16,10 +16,11 @@ export const dynamic = "force-dynamic";
 export default async function PaginaPublicar({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tipo?: string }>;
+  searchParams: Promise<{ q?: string; tipo?: string; para?: string }>;
 }) {
-  const { q = "", tipo = "necesidad" } = await searchParams;
-  const perfil = await requerirPerfil("/publicar");
+  const { q = "", tipo = "necesidad", para = "" } = await searchParams;
+  const consulta = new URLSearchParams({ tipo, ...(q ? { q } : {}), ...(para ? { para } : {}) });
+  const perfil = await requerirPerfil(`/publicar?${consulta}`);
 
   const [territorio, rubros, datos] = await Promise.all([
     opcionesTerritorio(),

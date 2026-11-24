@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { contextoInterprete, interpretar, type Intencion } from "@/lib/ia";
 import { intencionVacia } from "@/lib/ia/tipos";
+import { textoPara } from "@/lib/privacidad";
 
 import { buscarActores, type ActorResumen } from "./actores";
 import { idsQueCubre } from "./categorias";
@@ -224,11 +225,22 @@ export async function invitarACotizar(entrada: {
   });
 }
 
-export async function obtenerNecesidad(id: number) {
+/**
+ * Necesidad con su solicitante. El solicitante sale proyectado: sin contacto,
+ * RUT ni usuario, aunque quien mira tenga sesión.
+ */
+export async function obtenerNecesidad(id: number, conSesion: boolean) {
   const filas = await db
     .select({
       necesidad: necesidades,
-      solicitante: perfiles,
+      solicitante: {
+        id: perfiles.id,
+        slug: perfiles.slug,
+        nombre: perfiles.nombre,
+        avatarUrl: perfiles.avatarUrl,
+        reputacionPromedio: perfiles.reputacionPromedio,
+        reputacionConteo: perfiles.reputacionConteo,
+      },
       comunaNombre: comunas.nombre,
       categoriaNombre: categorias.nombre,
     })
@@ -239,7 +251,17 @@ export async function obtenerNecesidad(id: number) {
     .where(eq(necesidades.id, id))
     .limit(1);
 
-  return filas[0] ?? null;
+  const fila = filas[0];
+  if (!fila) return null;
+  return {
+    ...fila,
+    necesidad: {
+      ...fila.necesidad,
+      titulo: textoPara(fila.necesidad.titulo, conSesion),
+      descripcion: textoPara(fila.necesidad.descripcion, conSesion),
+    },
+    solicitante: { ...fila.solicitante, nombre: textoPara(fila.solicitante.nombre, conSesion) },
+  };
 }
 
 export async function listarNecesidades(opciones: {
@@ -309,14 +331,18 @@ export async function oportunidadesDe(perfilId: number, limite = 20) {
  * Necesidades abiertas que calzan con una búsqueda: por texto o, si no hay
  * texto, por la categoría (un rubro cubre sus especialidades).
  */
-export async function buscarNecesidadesAbiertas(intencion: Intencion, limite = 6) {
+export async function buscarNecesidadesAbiertas(
+  intencion: Intencion,
+  opciones: { limite?: number; conSesion: boolean },
+) {
   const patrones = intencion.terminos.slice(0, 3).map((t) => `%${t}%`);
   const idsCategoria = intencion.categoriaId ? await idsQueCubre(intencion.categoriaId) : [];
   if (!patrones.length && !idsCategoria.length) return [];
 
-  return db
+  const filas = await db
     .select({
-      necesidad: necesidades,
+      id: necesidades.id,
+      titulo: necesidades.titulo,
       solicitanteNombre: perfiles.nombre,
       comunaNombre: comunas.nombre,
     })
@@ -336,5 +362,11 @@ export async function buscarNecesidadesAbiertas(intencion: Intencion, limite = 6
       ),
     )
     .orderBy(desc(necesidades.creadoEn))
-    .limit(limite);
+    .limit(opciones.limite ?? 6);
+
+  return filas.map((f) => ({
+    ...f,
+    titulo: textoPara(f.titulo, opciones.conSesion),
+    solicitanteNombre: textoPara(f.solicitanteNombre, opciones.conSesion),
+  }));
 }

@@ -1,22 +1,18 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
-  calificaciones,
   categorias,
   coberturas,
   comunas,
-  items,
-  operaciones,
   perfilCategorias,
   perfilRoles,
   perfiles,
-  regiones,
-  verificaciones,
   type RolActor,
   type TipoIdentidad,
 } from "@/db/schema";
 import { distanciaKm } from "@/lib/geo";
+import { ROLES_QUE_OFRECEN } from "@/lib/roles";
 import { normalizarTelefono } from "@/lib/telefono";
 import { slugificar } from "@/lib/utils";
 
@@ -47,9 +43,6 @@ async function slugLibre(base: string) {
   }
   return `${raiz}-${Date.now()}`;
 }
-
-/** Roles que ofrecen algo: exigen declarar al menos una actividad. */
-export const ROLES_QUE_OFRECEN: RolActor[] = ["prestador", "negocio", "proveedor", "productor"];
 
 type DatosFicha = {
   nombre: string;
@@ -344,101 +337,6 @@ export async function fijarDisponibilidad(perfilId: number, disponible: boolean)
     entidadId: perfilId,
     actorPerfilId: perfilId,
   });
-}
-
-/** Ficha pública completa. */
-export async function perfilPublico(slug: string) {
-  const filas = await db
-    .select({
-      perfil: perfiles,
-      comunaNombre: comunas.nombre,
-      regionNombre: regiones.nombre,
-    })
-    .from(perfiles)
-    .leftJoin(comunas, eq(comunas.id, perfiles.comunaId))
-    .leftJoin(regiones, eq(regiones.id, comunas.regionId))
-    .where(eq(perfiles.slug, slug))
-    .limit(1);
-
-  const fila = filas[0];
-  if (!fila) return null;
-
-  const perfilId = fila.perfil.id;
-
-  const [roles, cats, cobertura, verificado, catalogo, resenas, trabajos, propias] = await Promise.all([
-    db
-      .select({ rol: perfilRoles.rol })
-      .from(perfilRoles)
-      .where(and(eq(perfilRoles.perfilId, perfilId), eq(perfilRoles.activo, true))),
-    db
-      .select({ id: categorias.id, nombre: categorias.nombre, slug: categorias.slug })
-      .from(perfilCategorias)
-      .innerJoin(categorias, eq(categorias.id, perfilCategorias.categoriaId))
-      .where(eq(perfilCategorias.perfilId, perfilId)),
-    db
-      .select({ id: comunas.id, nombre: comunas.nombre })
-      .from(coberturas)
-      .innerJoin(comunas, eq(comunas.id, coberturas.comunaId))
-      .where(eq(coberturas.perfilId, perfilId)),
-    db
-      .select({ tipo: verificaciones.tipo, estado: verificaciones.estado })
-      .from(verificaciones)
-      .where(eq(verificaciones.perfilId, perfilId)),
-    db
-      .select()
-      .from(items)
-      .where(and(eq(items.perfilId, perfilId), eq(items.activo, true)))
-      .limit(12),
-    db
-      .select({
-        calificacion: calificaciones,
-        autorNombre: perfiles.nombre,
-        autorSlug: perfiles.slug,
-      })
-      .from(calificaciones)
-      .innerJoin(perfiles, eq(perfiles.id, calificaciones.autorPerfilId))
-      .where(eq(calificaciones.destinoPerfilId, perfilId))
-      .orderBy(desc(calificaciones.creadoEn))
-      .limit(8),
-    db
-      .select({ total: sql<number>`count(*)` })
-      .from(operaciones)
-      .where(eq(operaciones.proveedorPerfilId, perfilId)),
-    actividadesPropias(perfilId),
-  ]);
-
-  return {
-    ...fila.perfil,
-    comunaNombre: fila.comunaNombre,
-    regionNombre: fila.regionNombre,
-    roles: roles.map((r) => r.rol),
-    categorias: cats,
-    cobertura,
-    verificaciones: verificado,
-    catalogo,
-    resenas,
-    operacionesCompletadas: Number(trabajos[0]?.total ?? 0),
-    otrasActividades: propias.map((p) => p.texto),
-  };
-}
-
-export async function categoriasDisponibles() {
-  return db.select().from(categorias).orderBy(categorias.orden, categorias.nombre);
-}
-
-export async function comunasActivas() {
-  return db
-    .select({
-      id: comunas.id,
-      nombre: comunas.nombre,
-      lat: comunas.lat,
-      lng: comunas.lng,
-      regionNombre: regiones.nombre,
-      activa: comunas.activa,
-    })
-    .from(comunas)
-    .innerJoin(regiones, eq(regiones.id, comunas.regionId))
-    .orderBy(desc(comunas.activa), comunas.nombre);
 }
 
 /**

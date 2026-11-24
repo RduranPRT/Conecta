@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -26,6 +26,7 @@ export function BuscadorRapido({
   tamano?: "md" | "lg";
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const parametros = useSearchParams();
   // En Buscar, la caja del encabezado muestra la consulta en curso.
   const [valor, setValor] = useState(valorInicial || parametros.get("q") || "");
@@ -39,7 +40,13 @@ export function BuscadorRapido({
   function enviar(consulta: string) {
     const q = consulta.trim();
     if (!q) return;
-    const destino = new URLSearchParams(parametros.toString());
+    // Solo se conservan los filtros de búsqueda: otros parámetros de la pantalla
+    // (tipo, zona, accion…) no significan lo mismo en los resultados.
+    const destino = new URLSearchParams();
+    for (const clave of ["comuna", "rol", "vista"]) {
+      const v = parametros.get(clave);
+      if (v && pathname === "/buscar") destino.set(clave, v);
+    }
     destino.set("q", q);
     router.push(`/buscar?${destino.toString()}`);
   }
@@ -89,5 +96,19 @@ export function BuscadorRapido({
         )}
       </div>
     </form>
+  );
+}
+
+/**
+ * Buscador del encabezado. En Inicio no se muestra: ahí el buscador es el
+ * protagonista de la pantalla y dos cajas iguales confunden (S03).
+ */
+export function BuscadorEncabezado({ className }: { className?: string }) {
+  const pathname = usePathname();
+  if (pathname === "/") return null;
+  return (
+    <div className={className}>
+      <BuscadorRapido />
+    </div>
   );
 }

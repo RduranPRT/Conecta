@@ -13,3 +13,6 @@ next-env.d.ts
 coverage/
 .turbo/
 *.tsbuildinfo
+test-results/
+playwright-report/
+.almacen/

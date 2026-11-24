@@ -78,7 +78,7 @@ export default async function PaginaBienvenida() {
       </section>
 
       <div className="text-center">
-        <BotonEnlace href="/inicio" variante="fantasma" tamano="sm">
+        <BotonEnlace href="/" variante="fantasma" tamano="sm">
           Ir al inicio
         </BotonEnlace>
       </div>

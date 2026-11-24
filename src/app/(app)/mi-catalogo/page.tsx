@@ -31,7 +31,7 @@ export default async function PaginaMiCatalogo() {
   const perfil = await requerirPerfil("/mi-catalogo");
   const [catalogo, publicaciones] = await Promise.all([
     catalogoDe(perfil.id),
-    publicacionesDe(perfil.id, 50),
+    publicacionesDe(perfil.id, { limite: 50, conSesion: true, incluirPausadas: true }),
   ]);
 
   return (
@@ -115,7 +115,7 @@ export default async function PaginaMiCatalogo() {
             {publicaciones.map(({ publicacion, categoriaNombre, comunaNombre }) => (
               <Link
                 key={publicacion.id}
-                href={`/p/${perfil.slug}`}
+                href={`/publicaciones/${publicacion.id}`}
                 className="flex items-center gap-4 px-4 py-3.5 transition hover:bg-superficie2"
               >
                 <div className="min-w-0 flex-1">
