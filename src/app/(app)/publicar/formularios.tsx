@@ -10,6 +10,7 @@ import {
 import { SelectorComuna, type Territorio } from "@/components/selector-comuna";
 import { SelectorCategoria, type OpcionCategoria } from "@/components/selector-categoria";
 import { Aviso, Boton } from "@/components/ui";
+import { sinReiniciar } from "@/lib/envio";
 
 type Props = {
   territorio: Territorio;
@@ -29,7 +30,7 @@ export function FormularioNecesidad({
   );
 
   return (
-    <form action={enviar} className="space-y-5">
+    <form action={enviar} onSubmit={sinReiniciar(enviar)} className="space-y-5">
       {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
 
       <div>
@@ -137,7 +138,7 @@ export function FormularioPublicacion({
   );
 
   return (
-    <form action={enviar} className="space-y-5">
+    <form action={enviar} onSubmit={sinReiniciar(enviar)} className="space-y-5">
       {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
 
       <div>
@@ -190,7 +191,7 @@ export function FormularioPublicacion({
       <SelectorComuna territorio={territorio} inicial={comunaPorDefecto} idBase="publicacion" />
 
       <Boton type="submit" className="w-full" disabled={pendiente}>
-        {pendiente ? "Publicando…" : "Publicar en el feed"}
+        {pendiente ? "Publicando…" : "Guardar y publicar"}
       </Boton>
     </form>
   );

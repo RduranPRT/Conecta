@@ -17,7 +17,7 @@ import { textoPara } from "@/lib/privacidad";
 
 import { categoriasDeInteres } from "./categorias";
 import { registrarEvento } from "./eventos";
-import { datosParaRequisitos } from "./perfil";
+import { activarOferta, datosParaRequisitos } from "./perfil";
 import { exigirRequisitos } from "./requisitos";
 
 /**
@@ -232,6 +232,7 @@ export async function crearPublicacion(entrada: {
   if (entrada.tipo !== "novedad" && entrada.tipo !== "necesidad") {
     const datos = await datosParaRequisitos(entrada.autorPerfilId);
     exigirRequisitos("publicar_oferta", { ...datos, comunaId: entrada.comunaId ?? datos.comunaId });
+    await activarOferta(entrada.autorPerfilId);
   }
 
   const [fila] = await db

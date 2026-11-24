@@ -5,6 +5,7 @@ import { BadgeCheck, MapPin, Package, Wrench } from "lucide-react";
 
 import { AccionConSesion, EnlaceSinSesion } from "@/components/accion-con-sesion";
 import { Mapa } from "@/components/mapa";
+import { RequiereDatos } from "@/components/requiere-datos";
 import { TarjetaPublicacion } from "@/components/tarjeta-publicacion";
 import {
   Avatar,
@@ -145,11 +146,18 @@ export default async function PaginaPerfil({
           <Encabezado nivel={2} titulo="Contactar" />
           <Tarjeta className="space-y-4 p-5">
             <DatosContacto perfilId={ficha.id} abrir={quiereContactar} />
-            <FormularioContacto
-              perfilId={ficha.id}
-              nombre={ficha.nombre}
-              enfocar={quiereContactar}
-            />
+            <RequiereDatos
+              accion="contactar"
+              perfilId={yo!.id}
+              next={contactar(ficha.slug)}
+              titulo="Antes de escribir"
+            >
+              <FormularioContacto
+                perfilId={ficha.id}
+                nombre={ficha.nombre}
+                enfocar={quiereContactar}
+              />
+            </RequiereDatos>
           </Tarjeta>
         </section>
       ) : null}

@@ -18,6 +18,12 @@ export function normalizarTelefono(prefijo: string, numero: string): string | nu
   // El cero de larga distancia nacional no va en el formato internacional.
   digitos = digitos.replace(/^0+/, "");
 
+  // En Chile, celulares y fijos tienen 9 dígitos (S07).
+  if (codigo === "56" && digitos.length !== 9) {
+    throw new Error(
+      `El teléfono debe tener 9 dígitos, sin el +56, y escribiste ${digitos.length}. Ejemplo: 9 1234 5678.`,
+    );
+  }
   if (digitos.length < 6 || digitos.length > 12) {
     throw new Error("El teléfono no parece completo. Revisa los dígitos.");
   }

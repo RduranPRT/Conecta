@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { RequiereDatos } from "@/components/requiere-datos";
 import { Encabezado, Tarjeta } from "@/components/ui";
 import { opcionesCategoria } from "@/lib/casos/categorias";
 import { requerirPerfil } from "@/lib/sesion";
@@ -24,6 +25,12 @@ export default async function PaginaNuevoItem({
         titulo="Agregar a mi catálogo"
         bajada="Lo que agregues aparece en tu ficha y hace que te encuentren por su nombre en el buscador."
       />
+      <RequiereDatos
+        accion="publicar_catalogo"
+        perfilId={perfil.id}
+        next={`/mi-catalogo/nuevo${tipo ? `?tipo=${encodeURIComponent(tipo)}` : ""}`}
+        titulo="Antes de publicar en tu catálogo"
+      >
       <Tarjeta className="p-5 sm:p-6">
         <FormularioItem
           opciones={opciones}
@@ -34,6 +41,7 @@ export default async function PaginaNuevoItem({
           }
         />
       </Tarjeta>
+      </RequiereDatos>
     </div>
   );
 }

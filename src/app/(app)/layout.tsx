@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { AvisoRut } from "@/components/aviso-rut";
 import { EncabezadoApp } from "@/components/encabezado-app";
 import { NavInferior, NavLateral } from "@/components/navegacion";
 import { RetornoAccion } from "@/components/retorno-accion";
@@ -19,6 +20,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
         <main className="min-w-0 flex-1">
           <Suspense fallback={null}>
             <RetornoAccion />
+            {perfil && !perfil.identificadorFiscalNorm ? <AvisoRut /> : null}
           </Suspense>
           {children}
         </main>

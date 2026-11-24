@@ -9,6 +9,7 @@ import {
 } from "@/app/acciones";
 import { SelectorCategoria, type OpcionCategoria } from "@/components/selector-categoria";
 import { Aviso, Boton } from "@/components/ui";
+import { sinReiniciar } from "@/lib/envio";
 import { cn } from "@/lib/utils";
 
 export type ItemInicial = {
@@ -42,7 +43,7 @@ export function FormularioItem({
   const [imagen, setImagen] = useState(inicial?.imagenUrl ?? "");
 
   return (
-    <form action={enviar} className="space-y-5">
+    <form action={enviar} onSubmit={sinReiniciar(enviar)} className="space-y-5">
       {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
       {inicial ? <input type="hidden" name="itemId" value={inicial.id} /> : null}
 

@@ -5,6 +5,8 @@ import { categorias, items } from "@/db/schema";
 
 import { filtrarActividades } from "./categorias";
 import { registrarEvento } from "./eventos";
+import { activarOferta, datosParaRequisitos } from "./perfil";
+import { exigirRequisitos } from "./requisitos";
 
 /**
  * Catálogo: lo que un perfil vende o presta de forma permanente. Se distingue
@@ -60,6 +62,8 @@ async function itemPropio(itemId: number, perfilId: number) {
 }
 
 export async function crearItem(perfilId: number, entrada: EntradaItem) {
+  exigirRequisitos("publicar_catalogo", await datosParaRequisitos(perfilId));
+  await activarOferta(perfilId);
   const valores = await validarItem(entrada);
   const [item] = await db
     .insert(items)

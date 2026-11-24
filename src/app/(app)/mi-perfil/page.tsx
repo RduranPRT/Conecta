@@ -4,6 +4,7 @@ import { BotonEnlace, Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { arbolDeRubros, interesesDe } from "@/lib/casos/categorias";
 import { fichaPropia } from "@/lib/casos/ficha";
 import { opcionesTerritorio, prefijoTelefonico } from "@/lib/casos/territorio";
+import { formatearRut } from "@/lib/rut";
 import { requerirPerfil } from "@/lib/sesion";
 
 import { FormularioEdicion } from "./formulario";
@@ -52,11 +53,11 @@ export default async function PaginaMiPerfil() {
           rubros={rubros}
           prefijo={prefijo}
           intereses={intereses}
+          rut={ficha.identificadorFiscalNorm ? formatearRut(ficha.identificadorFiscalNorm) : null}
           inicial={{
             nombre: ficha.nombre,
             tipoIdentidad: ficha.tipoIdentidad,
             descripcion: ficha.descripcion,
-            rut: ficha.identificadorFiscal,
             telefono: ficha.telefono,
             direccion: ficha.direccion,
             comunaId: ficha.comunaId,
@@ -66,8 +67,8 @@ export default async function PaginaMiPerfil() {
             otrasActividades: ficha.otrasActividades,
             correoPublico: ficha.correoPublico,
             sitioWeb: ficha.sitioWeb,
-            lat: ficha.lat,
-            lng: ficha.lng,
+            lat: ficha.ubicacionExacta ? ficha.lat : null,
+            lng: ficha.ubicacionExacta ? ficha.lng : null,
           }}
           coberturaInicial={ficha.coberturaIds.filter((id) => id !== ficha.comunaId)}
         />

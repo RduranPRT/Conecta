@@ -36,6 +36,13 @@
       "when": 1795560852444,
       "tag": "0004_mapeo_taxonomia",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795561679845,
+      "tag": "0005_rut_unico",
+      "breakpoints": true
     }
   ]
 }

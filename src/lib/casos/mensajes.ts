@@ -9,6 +9,8 @@ import {
 } from "@/db/schema";
 
 import { registrarEvento } from "./eventos";
+import { datosParaRequisitos } from "./perfil";
+import { exigirRequisitos } from "./requisitos";
 
 export async function conversacionesDe(perfilId: number) {
   const propias = db
@@ -145,6 +147,8 @@ export async function iniciarConversacion(entrada: {
   if (entrada.dePerfilId === entrada.aPerfilId) {
     throw new Error("No puedes escribirte a ti mismo.");
   }
+  // Solo frena a cuentas antiguas sin RUT: el alta ya lo pide (D6).
+  exigirRequisitos("contactar", await datosParaRequisitos(entrada.dePerfilId));
 
   // Si ya existe una conversación entre ambos sobre lo mismo, se reutiliza.
   const existente = await db

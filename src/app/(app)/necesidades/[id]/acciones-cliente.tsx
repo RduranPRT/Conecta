@@ -10,8 +10,8 @@ import {
   accionRegistrarEntrega,
   type EstadoAccion,
 } from "@/app/acciones";
-import { CampoTelefono } from "@/components/campos-ficha";
 import { Aviso, Boton } from "@/components/ui";
+import { sinReiniciar } from "@/lib/envio";
 
 export function BotonInvitar({
   necesidadId,
@@ -79,7 +79,6 @@ export function FormularioPropuesta({
   necesidadId,
   moneda,
   propuestaPrevia,
-  pedirTelefono,
   enfocar = false,
 }: {
   /** Venía a cotizar y acaba de ingresar: se abre donde estaba. */
@@ -87,8 +86,6 @@ export function FormularioPropuesta({
   necesidadId: number;
   moneda: string;
   propuestaPrevia?: { monto: string; plazoDias: number; mensaje: string | null } | null;
-  /** Requisito por acción (S05): si falta el teléfono, se pide aquí y se explica para qué. */
-  pedirTelefono?: { prefijo: string; motivo: string } | null;
 }) {
   const [estado, enviar, pendiente] = useActionState<EstadoAccion, FormData>(
     accionEnviarPropuesta,
@@ -96,7 +93,7 @@ export function FormularioPropuesta({
   );
 
   return (
-    <form action={enviar} className="space-y-4">
+    <form action={enviar} onSubmit={sinReiniciar(enviar)} className="space-y-4">
       {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
       {estado?.ok ? <Aviso tono="exito">{estado.mensaje}</Aviso> : null}
       <input type="hidden" name="necesidadId" value={necesidadId} />
@@ -145,13 +142,6 @@ export function FormularioPropuesta({
           placeholder="Visita, diagnóstico, repuesto y garantía de 3 meses."
         />
       </div>
-
-      {pedirTelefono ? (
-        <div className="rounded-xl border border-alerta/30 bg-alerta/5 p-3">
-          <CampoTelefono prefijo={pedirTelefono.prefijo} requerido id="telefono-propuesta" />
-          <p className="ayuda mt-0">{pedirTelefono.motivo} Queda guardado en tu perfil.</p>
-        </div>
-      ) : null}
 
       <Boton type="submit" disabled={pendiente}>
         {pendiente

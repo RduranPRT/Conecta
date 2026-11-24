@@ -7,14 +7,13 @@ import { BadgeCheck, MapPin, Sparkles } from "lucide-react";
 import { Avatar, BotonEnlace, Encabezado, Estrellas, Insignia, Tarjeta, Vacio } from "@/components/ui";
 import { AccionConSesion } from "@/components/accion-con-sesion";
 import { EtiquetaSentido } from "@/components/etiqueta-sentido";
+import { RequiereDatos } from "@/components/requiere-datos";
 import { TarjetaActor } from "@/components/tarjeta-actor";
 import { db } from "@/db";
 import { invitaciones, operaciones, propuestas as tablaPropuestas } from "@/db/schema";
 import { trazaDeNecesidad } from "@/lib/casos/actividad";
 import { calcularMatch, obtenerNecesidad } from "@/lib/casos/necesidades";
 import { contarPropuestas, propuestasDe } from "@/lib/casos/propuestas";
-import { requisitosDe } from "@/lib/casos/requisitos";
-import { prefijoTelefonico } from "@/lib/casos/territorio";
 import { fechaHora, haceCuanto, monto } from "@/lib/formato";
 import { formatearDistancia } from "@/lib/geo";
 import { obtenerPerfil } from "@/lib/sesion";
@@ -112,11 +111,6 @@ export default async function PaginaNecesidad({
 
   const abierta = necesidad.estado === "publicada" || necesidad.estado === "en_cotizacion";
   const puedeCotizar = Boolean(perfil) && !soySolicitante && abierta;
-  const motivoTelefono = requisitosDe("enviar_propuesta").find((r) => r.campo === "telefono")!.motivo;
-  const pedirTelefono =
-    puedeCotizar && perfil && !perfil.telefono
-      ? { prefijo: await prefijoTelefonico(perfil.comunaId), motivo: motivoTelefono }
-      : null;
 
   const mejor = propuestas.length
     ? propuestas.reduce((a, b) => (Number(a.propuesta.monto) <= Number(b.propuesta.monto) ? a : b))
@@ -201,12 +195,17 @@ export default async function PaginaNecesidad({
                 : "Te invitaron directamente a cotizar"}
             </p>
           ) : null}
+          <RequiereDatos
+            accion="enviar_propuesta"
+            perfilId={perfil!.id}
+            next={`/necesidades/${necesidadId}?accion=proponer#propuesta`}
+            titulo="Antes de cotizar"
+          >
           <Tarjeta className="p-5">
             <FormularioPropuesta
               enfocar={accion === "proponer"}
               necesidadId={necesidadId}
               moneda={necesidad.moneda}
-              pedirTelefono={pedirTelefono}
               propuestaPrevia={
                 miPropuesta
                   ? {
@@ -218,6 +217,7 @@ export default async function PaginaNecesidad({
               }
             />
           </Tarjeta>
+          </RequiereDatos>
         </section>
       ) : null}
 

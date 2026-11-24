@@ -26,17 +26,26 @@ import {
 } from "@/lib/casos/categorias";
 import { contactoDe, type Contacto } from "@/lib/casos/ficha";
 import {
-  completarTelefono,
+  completarDatos,
   crearPerfil,
   fijarDisponibilidad,
   guardarFicha,
+  revisarAlta,
 } from "@/lib/casos/perfil";
+import { esAccion } from "@/lib/casos/requisitos";
 import { conParametros, destinoSeguro, INICIO } from "@/lib/destino";
 import { obtenerPerfil, obtenerSesion } from "@/lib/sesion";
 import { COOKIE_TERRITORIO } from "@/lib/territorio-sesion";
-import type { RolActor, TipoIdentidad } from "@/db/schema";
+import { rolActorEnum, type RolActor } from "@/db/schema";
 
-export type EstadoAccion = { ok?: boolean; error?: string; mensaje?: string; id?: number };
+export type EstadoAccion = {
+  ok?: boolean;
+  error?: string;
+  mensaje?: string;
+  id?: number;
+  /** Lo escrito, para no perderlo si hubo un error. Nunca la contraseña. */
+  valores?: Record<string, string>;
+};
 
 const VACIO: EstadoAccion = {};
 
@@ -66,8 +75,10 @@ function textos(formData: FormData, campo: string) {
     .filter(Boolean);
 }
 
-function tipoIdentidad(formData: FormData): TipoIdentidad {
-  return texto(formData, "tipoIdentidad") === "empresa" ? "empresa" : "persona";
+function rolesDe(formData: FormData): RolActor[] {
+  const validos = rolActorEnum.enumValues as readonly string[];
+  const roles = formData.getAll("roles").map(String).filter((r) => validos.includes(r));
+  return roles.length ? (roles as RolActor[]) : ["persona"];
 }
 
 function esAdministrador(email: string | null | undefined) {
@@ -89,23 +100,43 @@ export async function accionRegistro(
 ): Promise<EstadoAccion> {
   const nombre = texto(formData, "nombre");
   const email = texto(formData, "email").toLowerCase();
-  const clave = texto(formData, "clave");
+  const clave = String(formData.get("clave") ?? "");
+  const rut = texto(formData, "rut");
+  const destino = destinoSeguro(texto(formData, "next"));
+  const valores = { nombre, email, rut };
 
-  if (!nombre || !email || !clave) return { error: "Completa nombre, correo y contraseña." };
-  if (clave.length < 8) return { error: "La contraseña necesita al menos 8 caracteres." };
+  if (!nombre || !email || !clave || !rut) {
+    return { error: "Completa nombre, correo, contraseña y RUT.", valores };
+  }
+  if (clave.length < 8) {
+    return { error: "La contraseña necesita al menos 8 caracteres.", valores };
+  }
 
+  let usuarioId: string;
   try {
-    await auth.api.signUpEmail({
+    await revisarAlta({ nombre, rut });
+    const alta = await auth.api.signUpEmail({
       body: { name: nombre, email, password: clave },
       headers: await headers(),
     });
+    usuarioId = alta.user.id;
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : "No se pudo crear la cuenta.";
-    return { error: mensaje.includes("exist") ? "Ya existe una cuenta con ese correo." : mensaje };
+    if (/exist/i.test(mensaje) && !/RUT/.test(mensaje)) {
+      return { error: "Ya existe una cuenta con ese correo. Ingresa o usa otro.", valores };
+    }
+    if (/invalid email/i.test(mensaje)) return { error: "Ese correo no es válido.", valores };
+    return { error: mensaje, valores };
   }
 
-  const destino = destinoSeguro(texto(formData, "next"));
-  redirect(destino === INICIO ? "/onboarding" : conParametros("/onboarding", { next: destino }));
+  try {
+    await crearPerfil({ usuarioId, nombre, rut });
+  } catch {
+    // La cuenta quedó creada: se termina en la pantalla que pide lo que falta.
+    redirect(destino === INICIO ? "/onboarding" : conParametros("/onboarding", { next: destino }));
+  }
+
+  redirect(destino === INICIO ? "/bienvenida" : conParametros(destino, { cuenta: "lista" }));
 }
 
 export async function accionIngreso(
@@ -142,24 +173,11 @@ export async function accionCrearPerfil(
   const sesion = await obtenerSesion();
   if (!sesion?.user?.id) return { error: "Tu sesión expiró. Vuelve a ingresar." };
 
-  const roles = formData.getAll("roles").map(String) as RolActor[];
-
   try {
     await crearPerfil({
       usuarioId: sesion.user.id,
       nombre: texto(formData, "nombre"),
-      tipoIdentidad: tipoIdentidad(formData),
-      roles: roles.length ? roles : ["persona"],
-      comunaId: numero(formData, "comunaId"),
-      identificadorFiscal: texto(formData, "rut") || null,
-      telefono: texto(formData, "telefono") || null,
-      descripcion: texto(formData, "descripcion") || null,
-      direccion: texto(formData, "direccion") || null,
-      radioKm: numero(formData, "radioKm"),
-      categoriaIds: enteros(formData, "categorias"),
-      otrasActividades: textos(formData, "otrasActividades"),
-      lat: numero(formData, "lat"),
-      lng: numero(formData, "lng"),
+      rut: texto(formData, "rut"),
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo crear el perfil." };
@@ -175,23 +193,20 @@ export async function accionActualizarPerfil(
 ): Promise<EstadoAccion> {
   const perfil = await perfilOFalla();
 
-  const roles = formData.getAll("roles").map(String) as RolActor[];
-
   try {
     await guardarFicha(perfil.id, {
       nombre: texto(formData, "nombre") || perfil.nombre,
-      tipoIdentidad: tipoIdentidad(formData),
-      roles: roles.length ? roles : ["persona"],
+      roles: rolesDe(formData),
       descripcion: texto(formData, "descripcion") || null,
       telefono: texto(formData, "telefono") || null,
       correoPublico: texto(formData, "correoPublico") || null,
       sitioWeb: texto(formData, "sitioWeb") || null,
       direccion: texto(formData, "direccion") || null,
-      identificadorFiscal: texto(formData, "rut") || null,
       comunaId: numero(formData, "comunaId"),
       radioKm: numero(formData, "radioKm"),
       lat: numero(formData, "lat"),
       lng: numero(formData, "lng"),
+      quitarUbicacionExacta: Boolean(texto(formData, "quitarUbicacion")),
       categoriaIds: enteros(formData, "categorias"),
       otrasActividades: textos(formData, "otrasActividades"),
       coberturaIds: enteros(formData, "cobertura"),
@@ -204,6 +219,31 @@ export async function accionActualizarPerfil(
   revalidatePath("/mi-perfil");
   revalidatePath(`/p/${perfil.slug}`);
   return { ok: true, mensaje: "Listo: tu perfil quedó actualizado." };
+}
+
+/** Guarda lo que una acción pidió en el momento y vuelve a ella (S05). */
+export async function accionCompletarDatos(
+  _estado: EstadoAccion = VACIO,
+  formData: FormData,
+): Promise<EstadoAccion> {
+  const perfil = await perfilOFalla();
+  const accion = texto(formData, "accion");
+  if (!esAccion(accion)) return { error: "No sabemos qué ibas a hacer. Vuelve a intentarlo." };
+
+  try {
+    await completarDatos(perfil.id, accion, {
+      rut: texto(formData, "rut"),
+      comunaId: numero(formData, "comunaId"),
+      telefono: texto(formData, "telefono"),
+      categoriaIds: enteros(formData, "categorias"),
+      otrasActividades: textos(formData, "otrasActividades"),
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+  }
+
+  revalidatePath("/", "layout");
+  redirect(destinoSeguro(texto(formData, "next")));
 }
 
 export async function accionDisponibilidad(disponible: boolean) {
@@ -309,8 +349,6 @@ export async function accionEnviarPropuesta(
   if (!monto || monto <= 0) return { error: "Indica un monto." };
 
   try {
-    const telefono = texto(formData, "telefono");
-    if (telefono) await completarTelefono(perfil.id, telefono);
     await enviarPropuesta({
       necesidadId,
       perfilId: perfil.id,

@@ -17,7 +17,9 @@ describe("teléfonos", () => {
   });
 
   it("rechaza números incompletos con un mensaje claro", () => {
-    expect(() => normalizarTelefono("+56", "1234")).toThrow(/completo/);
+    expect(() => normalizarTelefono("+56", "1234")).toThrow(/9 dígitos/);
+    expect(() => normalizarTelefono("+56", "9 1234 56789")).toThrow(/9 dígitos/);
+    expect(() => normalizarTelefono("+54", "1234")).toThrow(/completo/);
   });
 
   it("separa para editar y vuelve a formatear para mostrar", () => {

@@ -4,7 +4,6 @@ import { useActionState, useState } from "react";
 
 import { accionActualizarPerfil, type EstadoAccion } from "@/app/acciones";
 import {
-  ROLES_QUE_OFRECEN,
   SeccionActividades,
   SeccionContacto,
   SeccionIdentidad,
@@ -16,6 +15,8 @@ import {
 import { SelectorCobertura, type Territorio } from "@/components/selector-comuna";
 import type { RubroOpcion } from "@/components/selector-actividades";
 import { Aviso, Boton } from "@/components/ui";
+import { sinReiniciar } from "@/lib/envio";
+import { ofreceAlgo } from "@/lib/roles";
 
 function Bloque({
   titulo,
@@ -45,8 +46,10 @@ export function FormularioEdicion({
   inicial,
   coberturaInicial,
   intereses,
+  rut,
 }: {
   intereses: number[];
+  rut: string | null;
   territorio: Territorio;
   rubros: RubroOpcion[];
   prefijo: string;
@@ -58,14 +61,14 @@ export function FormularioEdicion({
     {},
   );
   const [roles, setRoles] = useState<string[]>(inicial.roles ?? ["persona"]);
-  const ofrece = roles.some((r) => ROLES_QUE_OFRECEN.includes(r));
+  const ofrece = ofreceAlgo(roles);
 
   return (
-    <form action={enviar}>
+    <form action={enviar} onSubmit={sinReiniciar(enviar)}>
       {/* Contenedor propio: React agrega campos ocultos al inicio del formulario. */}
       <div className="space-y-6">
         <Bloque titulo="Quién eres">
-          <SeccionIdentidad inicial={inicial} />
+          <SeccionIdentidad inicial={inicial} rut={rut} />
         </Bloque>
 
         <Bloque titulo="Qué haces en Conecta">
@@ -91,7 +94,7 @@ export function FormularioEdicion({
         </Bloque>
 
         <Bloque titulo="Dónde estás">
-          <SeccionUbicacion territorio={territorio} inicial={inicial} />
+          <SeccionUbicacion territorio={territorio} inicial={inicial} ofrece={ofrece} />
         </Bloque>
 
         {ofrece ? (
@@ -104,10 +107,14 @@ export function FormularioEdicion({
         ) : null}
 
         <Bloque
-          titulo="Contacto y datos comerciales"
-          bajada="Todo es opcional aquí. Te lo pediremos solo cuando una acción lo necesite."
+          titulo={ofrece ? "Contacto y datos comerciales" : "Contacto"}
+          bajada={
+            ofrece
+              ? "Para que quien te contrate pueda coordinar contigo."
+              : "Es opcional. Te lo pediremos solo cuando una acción lo necesite."
+          }
         >
-          <SeccionContacto inicial={inicial} prefijo={prefijo} />
+          <SeccionContacto inicial={inicial} prefijo={prefijo} ofrece={ofrece} />
         </Bloque>
       </div>
 

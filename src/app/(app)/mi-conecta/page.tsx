@@ -14,6 +14,7 @@ import {
 
 import { Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { mensajesSinLeer } from "@/lib/casos/mensajes";
+import { etiquetaRoles } from "@/lib/roles";
 import { requerirPerfil } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Mi Conecta" };
@@ -101,7 +102,7 @@ export default async function PaginaMiConecta() {
           <p className="truncate text-sm font-medium text-texto">{perfil.nombre}</p>
           <p className="truncate text-xs text-tenue">
             {perfil.comunaNombre ?? "Sin comuna"}
-            {perfil.roles.length ? ` · ${perfil.roles.join(", ")}` : ""}
+            {perfil.roles.length ? ` · ${etiquetaRoles(perfil.roles)}` : ""}
           </p>
         </div>
         <ChevronRight size={16} className="shrink-0 text-tenue" />

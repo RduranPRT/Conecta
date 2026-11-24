@@ -7,7 +7,7 @@
  */
 import "dotenv/config";
 
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 
 import { db } from "../src/db";
 import {
@@ -16,9 +16,12 @@ import {
   categorias,
   comunas,
   paises,
+  perfiles,
   regiones,
   solicitudesCategoria,
 } from "../src/db/schema";
+
+import { normalizarRut } from "../src/lib/rut";
 
 import { AGENTES, COMUNAS, REGIONES } from "./datos";
 import { HOJAS, RUBROS, SUBGRUPOS } from "./seed/taxonomia";
@@ -186,6 +189,8 @@ export async function cargarCatalogos() {
     `taxonomía: ${RUBROS.length} rubros, ${SUBGRUPOS.length} subgrupos, ${items} ítems y ${HOJAS.length - items} oficios`,
   );
 
+  await normalizarRutHeredados();
+
   /* 3 · Catálogo de agentes */
   for (const agente of AGENTES) {
     await db
@@ -196,6 +201,32 @@ export async function cargarCatalogos() {
   paso(`agentes: ${AGENTES.length} en catálogo`);
 
   return { idComuna, puntoComuna, idCategoria };
+}
+
+/**
+ * Cuentas anteriores a nov-2026: llena el RUT normalizado solo si el que tienen
+ * es válido y no se repite. No cambia lo que escribieron; a quien le falte se
+ * le pide al intentar una acción.
+ */
+async function normalizarRutHeredados() {
+  const filas = await db
+    .select({ id: perfiles.id, rut: perfiles.identificadorFiscal })
+    .from(perfiles)
+    .where(and(isNull(perfiles.identificadorFiscalNorm), isNotNull(perfiles.identificadorFiscal)))
+    .orderBy(perfiles.id);
+  let listos = 0;
+  for (const fila of filas) {
+    const norm = normalizarRut(fila.rut);
+    if (!norm) continue;
+    const ocupado = await db.query.perfiles.findFirst({
+      where: eq(perfiles.identificadorFiscalNorm, norm),
+      columns: { id: true },
+    });
+    if (ocupado) continue;
+    await db.update(perfiles).set({ identificadorFiscalNorm: norm }).where(eq(perfiles.id, fila.id));
+    listos += 1;
+  }
+  if (filas.length) paso(`RUT heredados: ${listos} de ${filas.length} válidos`);
 }
 
 // Ejecución directa: `npm run db:catalogos`.

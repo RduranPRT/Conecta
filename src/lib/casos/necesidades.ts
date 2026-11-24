@@ -57,7 +57,7 @@ export async function publicarNecesidad(entrada: EntradaNecesidad) {
   exigirRequisitos("publicar_necesidad", {
     comunaId,
     telefono: solicitante.telefono,
-    identificadorFiscal: solicitante.identificadorFiscal,
+    identificadorFiscalNorm: solicitante.identificadorFiscalNorm,
     actividades: 0,
   });
   const categoriaId = entrada.categoriaId ?? intencion.categoriaId ?? null;

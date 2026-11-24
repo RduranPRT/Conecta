@@ -271,6 +271,11 @@ export const perfiles = pgTable(
     avatarUrl: text("avatar_url"),
     /** Identificador tributario local (RUT en Chile). El campo no asume país. */
     identificadorFiscal: text("identificador_fiscal"),
+    /**
+     * El mismo identificador, validado y normalizado («12345678-5»). Único.
+     * NULL = falta o el que había no era válido; se pide al intentar una acción.
+     */
+    identificadorFiscalNorm: text("identificador_fiscal_norm"),
     telefono: text("telefono"),
     correoPublico: text("correo_publico"),
     sitioWeb: text("sitio_web"),
@@ -301,6 +306,7 @@ export const perfiles = pgTable(
     index("perfiles_comuna_idx").on(t.comunaId),
     index("perfiles_disponible_idx").on(t.disponibleAhora),
     index("perfiles_nombre_idx").on(t.nombre),
+    uniqueIndex("perfiles_identificador_fiscal_uq").on(t.identificadorFiscalNorm),
   ],
 );
 
