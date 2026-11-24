@@ -58,6 +58,19 @@ export type EstadoAccion = {
 
 const VACIO: EstadoAccion = {};
 
+/**
+ * Los casos de uso lanzan errores escritos para la gente. Un error de la base
+ * trae la consulta y sus datos: ese se registra y no sale de aquí.
+ */
+function explicar(error: unknown, porDefecto: string) {
+  if (!(error instanceof Error)) return porDefecto;
+  if (error.cause || error.message.startsWith("Failed query")) {
+    console.error("[Conecta]", error);
+    return porDefecto;
+  }
+  return error.message;
+}
+
 function texto(formData: FormData, campo: string) {
   const valor = formData.get(campo);
   return typeof valor === "string" ? valor.trim() : "";
@@ -130,7 +143,7 @@ export async function accionRegistro(
     });
     usuarioId = alta.user.id;
   } catch (error) {
-    const mensaje = error instanceof Error ? error.message : "No se pudo crear la cuenta.";
+    const mensaje = explicar(error, "No se pudo crear la cuenta.");
     if (/exist/i.test(mensaje) && !/RUT/.test(mensaje)) {
       return { error: "Ya existe una cuenta con ese correo. Ingresa o usa otro.", valores };
     }
@@ -189,7 +202,7 @@ export async function accionCrearPerfil(
       rut: texto(formData, "rut"),
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo crear el perfil." };
+    return { error: explicar(error, "No se pudo crear el perfil.") };
   }
 
   const destino = destinoSeguro(texto(formData, "next"));
@@ -222,7 +235,7 @@ export async function accionActualizarPerfil(
     });
     await fijarIntereses(perfil.id, enteros(formData, "intereses"));
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+    return { error: explicar(error, "No se pudo guardar.") };
   }
 
   revalidatePath("/mi-perfil");
@@ -248,7 +261,7 @@ export async function accionCompletarDatos(
       otrasActividades: textos(formData, "otrasActividades"),
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+    return { error: explicar(error, "No se pudo guardar.") };
   }
 
   revalidatePath("/", "layout");
@@ -305,7 +318,7 @@ export async function accionPublicarNecesidad(
     });
     id = necesidad.id;
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo publicar." };
+    return { error: explicar(error, "No se pudo publicar.") };
   }
 
   revalidatePath("/descubrir");
@@ -332,7 +345,7 @@ export async function accionCrearPublicacion(
       precio: numero(formData, "precio"),
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo publicar." };
+    return { error: explicar(error, "No se pudo publicar.") };
   }
 
   revalidatePath("/descubrir");
@@ -366,7 +379,7 @@ export async function accionEnviarPropuesta(
       mensaje: texto(formData, "mensaje") || null,
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo enviar la propuesta." };
+    return { error: explicar(error, "No se pudo enviar la propuesta.") };
   }
 
   revalidatePath(`/necesidades/${necesidadId}`);
@@ -406,7 +419,7 @@ export async function accionCalificar(
       comentario: texto(formData, "comentario") || null,
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo calificar." };
+    return { error: explicar(error, "No se pudo calificar.") };
   }
 
   revalidatePath("/actividad");
@@ -449,7 +462,7 @@ export async function accionEnviarMensaje(
   try {
     await enviarMensaje({ conversacionId, autorPerfilId: perfil.id, cuerpo });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo enviar." };
+    return { error: explicar(error, "No se pudo enviar.") };
   }
 
   revalidatePath(`/mensajes/${conversacionId}`);
@@ -476,7 +489,7 @@ export async function accionContactar(
       necesidadId: numero(formData, "necesidadId"),
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo iniciar la conversación." };
+    return { error: explicar(error, "No se pudo iniciar la conversación.") };
   }
 
   redirect(`/mensajes/${conversacionId}`);
@@ -494,7 +507,7 @@ export async function accionVerContacto(
   try {
     return { contacto: await contactoDe({ perfilId, solicitantePerfilId: perfil.id }) };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo cargar el contacto." };
+    return { error: explicar(error, "No se pudo cargar el contacto.") };
   }
 }
 
@@ -581,7 +594,7 @@ export async function accionResolverSolicitudCategoria(
   try {
     resuelta = await resolverSolicitudCategoria({ solicitudId, decision });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo resolver." };
+    return { error: explicar(error, "No se pudo resolver.") };
   }
 
   revalidatePath("/centro-de-control");
@@ -628,7 +641,7 @@ async function conFotos(
   try {
     await tarea(perfil.id);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo guardar la foto." };
+    return { error: explicar(error, "No se pudo guardar la foto.") };
   }
   revalidatePath("/mi-perfil");
   revalidatePath("/bienvenida");
@@ -694,7 +707,7 @@ export async function accionGuardarItem(
     if (itemId) await editarItem(perfil.id, itemId, entradaItem(formData));
     else nuevoId = (await crearItem(perfil.id, entradaItem(formData))).id;
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+    return { error: explicar(error, "No se pudo guardar.") };
   }
 
   revalidatePath("/mi-catalogo");

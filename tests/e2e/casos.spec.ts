@@ -3,12 +3,16 @@ import { eq, sql } from "drizzle-orm";
 import sharp from "sharp";
 
 import { db } from "@/db";
-import { items, perfiles } from "@/db/schema";
+import { categorias, items, perfiles, user } from "@/db/schema";
 import { crearItem } from "@/lib/casos/catalogo";
+import { actividadesPropias, fijarIntereses } from "@/lib/casos/categorias";
+import { feedPara } from "@/lib/casos/feed";
 import { contactoDe } from "@/lib/casos/ficha";
 import * as fotos from "@/lib/casos/imagenes";
+import { crearPerfil, datosParaRequisitos } from "@/lib/casos/perfil";
 import { enviarPropuesta } from "@/lib/casos/propuestas";
 
+import { rutNuevo } from "./ayudas";
 import { ALMACEN_E2E, BASE_E2E } from "./entorno";
 
 /**
@@ -87,4 +91,38 @@ test("cotizar y publicar exigen los datos de «Ofrecer», también por fuera de 
   await expect(crearItem(camila.id, { tipo: "producto", nombre: "Algo" })).rejects.toThrow(
     /Antes de continuar falta/,
   );
+});
+
+test("dos altas simultáneas con el mismo RUT: entra una sola", async () => {
+  const rut = rutNuevo();
+  const ids = [`a${Date.now()}`, `b${Date.now()}`];
+  await db.insert(user).values(
+    ids.map((id) => ({ id, name: "Doble", email: `${id}@prueba.test`, emailVerified: true })),
+  );
+  const r = await Promise.allSettled(
+    ids.map((usuarioId) => crearPerfil({ usuarioId, nombre: `Doble ${usuarioId}`, rut })),
+  );
+  expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+  const falla = r.find((x) => x.status === "rejected") as PromiseRejectedResult;
+  expect(falla.reason.message).toMatch(/Ya existe una cuenta con ese RUT/);
+});
+
+test("los intereses ordenan el feed y no cambian lo que se ofrece (S19)", async () => {
+  const camila = (await db.query.perfiles.findFirst({ where: eq(perfiles.slug, "camila-torres") }))!;
+  const rubro = async (slug: string) =>
+    (await db.query.categorias.findFirst({ where: eq(categorias.slug, slug) }))!.id;
+  const marcadas = async () =>
+    (await feedPara({ perfilId: camila.id, limite: 40 }))
+      .filter((p) => p.motivo.includes("te interesa"))
+      .map((p) => p.categoriaNombre);
+
+  await fijarIntereses(camila.id, []);
+  expect(await marcadas()).toEqual([]);
+  // Un ítem no es un interés válido: solo rubros.
+  await fijarIntereses(camila.id, [await rubro("rubro-transporte"), await rubro("item-marraqueta")]);
+  expect(new Set(await marcadas())).toEqual(new Set(["Fletes y mudanzas", "Despacho y reparto"]));
+
+  expect((await datosParaRequisitos(camila.id)).actividades).toBe(0);
+  expect(await actividadesPropias(camila.id)).toEqual([]);
+  await fijarIntereses(camila.id, []);
 });

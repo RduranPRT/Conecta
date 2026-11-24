@@ -134,7 +134,7 @@ export default async function PaginaBuscar({ searchParams }: { searchParams: Par
       ? {
           titulo: `«${intencion.categoriaNombre}» sí existe en Conecta, pero todavía nadie lo ofrece ${donde}`,
           descripcion:
-            "Publícalo como necesidad: avisamos a quien pueda resolverlo apenas aparezca.",
+            "Publícalo como necesidad: queda visible y quien pueda resolverlo puede cotizarte.",
         }
       : {
           titulo: "No reconocemos esa búsqueda",
