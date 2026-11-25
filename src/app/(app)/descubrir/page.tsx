@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TarjetaPublicacion } from "@/components/tarjeta-publicacion";
-import { BotonEnlace, Encabezado, Tarjeta, Vacio } from "@/components/ui";
+import { AccionConSesion } from "@/components/accion-con-sesion";
+import { Encabezado, Tarjeta, Vacio } from "@/components/ui";
 import { feedPara } from "@/lib/casos/feed";
 import { pulsoTerritorial } from "@/lib/casos/actividad";
 import { obtenerPerfil } from "@/lib/sesion";
+import { territorioDeLaPeticion } from "@/lib/territorio-sesion";
 
 export const metadata: Metadata = { title: "Descubrir" };
 export const dynamic = "force-dynamic";
@@ -27,15 +29,17 @@ export default async function PaginaDescubrir({
   const { tipo = "", zona = "mi-zona" } = await searchParams;
   const perfil = await obtenerPerfil();
 
+  const explorado = await territorioDeLaPeticion();
+
   const publicaciones = await feedPara({
     perfilId: perfil?.id ?? null,
-    comunaId: perfil?.comunaId ?? null,
+    comunaId: explorado.comuna?.id ?? null,
     tipo: (tipo || null) as never,
     soloMiZona: zona === "mi-zona",
     limite: 30,
   });
 
-  const pulso = await pulsoTerritorial(perfil?.comunaId ?? null);
+  const pulso = await pulsoTerritorial(explorado.comuna?.id ?? null);
 
   const enlace = (cambios: Record<string, string>) => {
     const p = new URLSearchParams({ tipo, zona, ...cambios });
@@ -49,9 +53,9 @@ export default async function PaginaDescubrir({
         titulo="Descubrir"
         bajada="Lo que se ofrece, se necesita y se mueve en tu territorio. Cada publicación termina en una acción."
         acciones={
-          <BotonEnlace href="/publicar" tamano="sm">
+          <AccionConSesion href="/publicar" haySesion={Boolean(perfil)} tamano="sm">
             Publicar
-          </BotonEnlace>
+          </AccionConSesion>
         }
       />
 
@@ -79,7 +83,7 @@ export default async function PaginaDescubrir({
                 : "rounded-lg px-3 py-1.5 text-xs text-tenue hover:bg-superficie2"
             }
           >
-            Mi zona
+            {explorado.comuna?.nombre ?? "Mi zona"}
           </Link>
           <Link
             href={enlace({ zona: "todo" })}
@@ -89,13 +93,13 @@ export default async function PaginaDescubrir({
                 : "rounded-lg px-3 py-1.5 text-xs text-tenue hover:bg-superficie2"
             }
           >
-            Explorar fuera
+            Todo Chile
           </Link>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {publicaciones.length ? (
             publicaciones.map((p) => (
               <TarjetaPublicacion
@@ -111,17 +115,21 @@ export default async function PaginaDescubrir({
                 guardada={Boolean(p.guardada)}
                 patrocinado={p.patrocinado}
                 motivo={p.motivo}
-                hayPerfil={Boolean(perfil)}
+                haySesion={Boolean(perfil)}
               />
             ))
           ) : (
             <Vacio
-              titulo="El feed está vacío por ahora"
+              titulo={
+                zona === "mi-zona" && explorado.comuna
+                  ? `Todavía no hay publicaciones en ${explorado.comuna.nombre}`
+                  : "El feed está vacío por ahora"
+              }
               descripcion="Publica un producto, un servicio o una necesidad y aparecerá aquí para tu territorio."
             >
-              <BotonEnlace href="/publicar" tamano="sm">
+              <AccionConSesion href="/publicar" haySesion={Boolean(perfil)} tamano="sm">
                 Publicar algo
-              </BotonEnlace>
+              </AccionConSesion>
             </Vacio>
           )}
         </div>

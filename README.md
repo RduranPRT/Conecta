@@ -174,7 +174,8 @@ cualquier nivel.
 - **Agentes ejecutando.** Catálogo, contratación y niveles sí; ejecución no.
 - **Verificación real de RUT.** Se registra y se aprueba a mano en el Centro de
   Control; no consulta al SII.
-- **Subida de archivos.** Los adjuntos están modelados; falta conectar Cloudflare R2.
+- **Adjuntos en propuestas.** Están modelados, sin pantalla. Las fotos de perfiles y catálogo sí se
+  suben (Cloudflare R2 o disco local: ver `docs/despliegue-2026-11.md`).
 - **Correo.** Resend no está conectado: no se envían avisos todavía.
 - **App móvil.** La web es responsiva; iOS y Android son otra etapa.
 - **pgvector en uso.** La extensión se habilita en la migración para que la Fase 2 no
@@ -189,7 +190,9 @@ npm run dev          # desarrollo
 npm run build        # compilar
 npm run start        # producción (usa $PORT)
 npm run typecheck    # tsc --noEmit
-npm run test         # vitest: interpretación y orden de resultados
+npm run test         # vitest: reglas
+npm run test:e2e     # playwright: recorridos (necesita E2E_DATABASE_URL local y npm run build)
+npm run taxonomia:exportar   # docs/taxonomia-para-revision.md
 npm run db:generate  # nueva migración desde el esquema
 npm run db:migrate   # aplicar migraciones
 npm run db:seed      # datos semilla

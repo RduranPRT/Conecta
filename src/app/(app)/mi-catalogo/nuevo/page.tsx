@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
+import { RequiereDatos } from "@/components/requiere-datos";
 import { Encabezado, Tarjeta } from "@/components/ui";
-import { arbolDeRubros } from "@/lib/casos/categorias";
+import { opcionesCategoria } from "@/lib/casos/categorias";
 import { requerirPerfil } from "@/lib/sesion";
 
 import { FormularioItem } from "../formulario-item";
@@ -16,7 +17,7 @@ export default async function PaginaNuevoItem({
 }) {
   const { tipo } = await searchParams;
   const perfil = await requerirPerfil("/mi-catalogo/nuevo");
-  const rubros = await arbolDeRubros();
+  const opciones = await opcionesCategoria();
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -24,9 +25,15 @@ export default async function PaginaNuevoItem({
         titulo="Agregar a mi catálogo"
         bajada="Lo que agregues aparece en tu ficha y hace que te encuentren por su nombre en el buscador."
       />
+      <RequiereDatos
+        accion="publicar_catalogo"
+        perfilId={perfil.id}
+        next={`/mi-catalogo/nuevo${tipo ? `?tipo=${encodeURIComponent(tipo)}` : ""}`}
+        titulo="Antes de publicar en tu catálogo"
+      >
       <Tarjeta className="p-5 sm:p-6">
         <FormularioItem
-          rubros={rubros}
+          opciones={opciones}
           tipoPorDefecto={
             tipo === "servicio" || (!tipo && perfil.roles.includes("prestador"))
               ? "servicio"
@@ -34,6 +41,7 @@ export default async function PaginaNuevoItem({
           }
         />
       </Tarjeta>
+      </RequiereDatos>
     </div>
   );
 }

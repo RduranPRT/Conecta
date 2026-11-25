@@ -3,17 +3,14 @@
 import { useState } from "react";
 
 import { SelectorComuna, type Territorio } from "@/components/selector-comuna";
-import {
-  SelectorEspecialidades,
-  type RubroOpcion,
-} from "@/components/selector-especialidades";
+import { SelectorActividades, type RubroOpcion } from "@/components/selector-actividades";
 import { Aviso, Boton } from "@/components/ui";
 import { separarTelefono } from "@/lib/telefono";
 import { cn } from "@/lib/utils";
 
 /**
- * Lo que una persona puede hacer en Conecta, dicho en sus palabras. Cada
- * opción activa un rol; se pueden marcar varias en la misma cuenta (S22).
+ * Lo que alguien puede hacer en Conecta, dicho en sus palabras. Cada opción
+ * activa un rol; se pueden marcar varias en la misma cuenta (S22, P06).
  */
 export const ACTIVIDADES = [
   {
@@ -41,15 +38,17 @@ export const ACTIVIDADES = [
     titulo: "Producir lo que vendo",
     texto: "Campo, taller, cocina o fabricación propia.",
   },
+  {
+    valor: "partner",
+    titulo: "Colaborar como partner",
+    texto: "Alianzas, derivar clientes o trabajar en conjunto.",
+  },
 ] as const;
-
-export const ROLES_QUE_OFRECEN = ["prestador", "negocio", "proveedor", "productor"];
 
 export type InicialFicha = {
   nombre?: string;
   tipoIdentidad?: "persona" | "empresa";
   descripcion?: string | null;
-  rut?: string | null;
   telefono?: string | null;
   direccion?: string | null;
   comunaId?: number | null;
@@ -59,11 +58,12 @@ export type InicialFicha = {
   otrasActividades?: string[];
   correoPublico?: string | null;
   sitioWeb?: string | null;
+  /** Solo si la persona fijó su punto: el centro de la comuna no cuenta. */
   lat?: number | null;
   lng?: number | null;
 };
 
-/** Tipos de especialidad que corresponden a los roles marcados (S16). */
+/** Tipos de actividad que corresponden a los roles marcados (S16). */
 export function tiposParaRoles(roles: string[]): ("servicio" | "producto")[] {
   const tipos = new Set<"servicio" | "producto">();
   if (roles.includes("prestador")) tipos.add("servicio");
@@ -73,60 +73,32 @@ export function tiposParaRoles(roles: string[]): ("servicio" | "producto")[] {
 
 /* ── Quién eres ───────────────────────────────────────────────────────── */
 
-export function SeccionIdentidad({ inicial }: { inicial?: InicialFicha }) {
-  const [tipo, setTipo] = useState<"persona" | "empresa">(inicial?.tipoIdentidad ?? "persona");
-
+export function SeccionIdentidad({
+  inicial,
+  rut,
+}: {
+  inicial?: InicialFicha;
+  rut?: string | null;
+}) {
+  const empresa = inicial?.tipoIdentidad === "empresa";
   return (
-    <div className="space-y-4">
-      <fieldset>
-        <legend className="etiqueta">¿Quién usa esta cuenta?</legend>
-        <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              { valor: "persona", titulo: "Una persona", texto: "Tú, con tu nombre." },
-              { valor: "empresa", titulo: "Una empresa o negocio", texto: "Con su nombre comercial." },
-            ] as const
-          ).map((o) => (
-            <label
-              key={o.valor}
-              className={cn(
-                "flex cursor-pointer flex-col rounded-xl border p-3 transition",
-                tipo === o.valor
-                  ? "border-marca bg-marca/10"
-                  : "border-borde bg-superficie hover:bg-superficie2",
-              )}
-            >
-              <input
-                type="radio"
-                name="tipoIdentidad"
-                value={o.valor}
-                checked={tipo === o.valor}
-                onChange={() => setTipo(o.valor)}
-                className="sr-only"
-              />
-              <span className="text-sm font-medium text-texto">{o.titulo}</span>
-              <span className="text-xs text-tenue">{o.texto}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <div>
-        <label className="etiqueta" htmlFor="nombre">
-          {tipo === "empresa" ? "Nombre del negocio" : "Tu nombre"}
-        </label>
-        <input
-          id="nombre"
-          name="nombre"
-          className="campo"
-          defaultValue={inicial?.nombre ?? ""}
-          required
-          minLength={2}
-          autoComplete={tipo === "empresa" ? "organization" : "name"}
-          placeholder={tipo === "empresa" ? "Repuestos del Sur" : "Juana Pérez"}
-        />
-        <p className="ayuda">Así te verán en el buscador y en el mapa.</p>
-      </div>
+    <div>
+      <label className="etiqueta" htmlFor="nombre">
+        {empresa ? "Nombre de fantasía" : "Tu nombre"}
+      </label>
+      <input
+        id="nombre"
+        name="nombre"
+        className="campo"
+        defaultValue={inicial?.nombre ?? ""}
+        required
+        minLength={2}
+        autoComplete={empresa ? "organization" : "name"}
+      />
+      <p className="ayuda">
+        Así te verán en el buscador y en el mapa.
+        {rut ? ` RUT ${rut}: no se muestra y no se puede cambiar aquí.` : ""}
+      </p>
     </div>
   );
 }
@@ -187,12 +159,16 @@ export function SeccionActividades({
 export function SeccionUbicacion({
   territorio,
   inicial,
+  ofrece = false,
 }: {
   territorio: Territorio;
   inicial?: InicialFicha;
+  /** Quien ofrece algo necesita comuna y puede fijar su punto en el mapa. */
+  ofrece?: boolean;
 }) {
+  const tenia = inicial?.lat != null && inicial?.lng != null;
   const [ubicacion, setUbicacion] = useState<{ lat: number; lng: number } | null>(
-    inicial?.lat != null && inicial?.lng != null ? { lat: inicial.lat, lng: inicial.lng } : null,
+    tenia ? { lat: inicial!.lat!, lng: inicial!.lng! } : null,
   );
   const [estado, setEstado] = useState<"inicial" | "buscando" | "error">("inicial");
 
@@ -214,39 +190,52 @@ export function SeccionUbicacion({
 
   return (
     <div className="space-y-4">
-      <SelectorComuna territorio={territorio} inicial={inicial?.comunaId} requerido />
+      <SelectorComuna
+        territorio={territorio}
+        inicial={inicial?.comunaId}
+        requerido={ofrece}
+        etiqueta={ofrece ? "Comuna" : "Comuna (opcional)"}
+      />
       <p className="ayuda mt-0">
-        Están todas las comunas de Chile. La usamos para mostrarte lo que está cerca y para que
-        te encuentren.
+        Están todas las comunas de Chile. La usamos para mostrarte lo que está cerca
+        {ofrece ? " y para que te encuentren" : ""}.
       </p>
 
-      <div>
-        <input type="hidden" name="lat" value={ubicacion?.lat ?? ""} />
-        <input type="hidden" name="lng" value={ubicacion?.lng ?? ""} />
-        <Boton
-          type="button"
-          variante="secundario"
-          tamano="sm"
-          onClick={usarUbicacionActual}
-          disabled={estado === "buscando"}
-        >
-          {estado === "buscando" ? "Obteniendo ubicación…" : "📍 Usar mi ubicación exacta (opcional)"}
-        </Boton>
-        <p className="ayuda">
-          Si no la usas, partimos del centro de tu comuna. Puedes cambiarla después.
-        </p>
-        {ubicacion ? (
-          <p className="ayuda mt-1 text-marca">
-            Ubicación capturada: {ubicacion.lat.toFixed(5)}, {ubicacion.lng.toFixed(5)}
+      <input type="hidden" name="lat" value={ubicacion?.lat ?? ""} />
+      <input type="hidden" name="lng" value={ubicacion?.lng ?? ""} />
+      {tenia && !ubicacion ? <input type="hidden" name="quitarUbicacion" value="1" /> : null}
+
+      {ofrece ? (
+        <div>
+          <div className="flex flex-wrap gap-2">
+            <Boton
+              type="button"
+              variante="secundario"
+              tamano="sm"
+              onClick={usarUbicacionActual}
+              disabled={estado === "buscando"}
+            >
+              {estado === "buscando" ? "Obteniendo ubicación…" : "📍 Usar mi ubicación exacta (opcional)"}
+            </Boton>
+            {ubicacion ? (
+              <Boton type="button" variante="fantasma" tamano="sm" onClick={() => setUbicacion(null)}>
+                Quitar ubicación exacta
+              </Boton>
+            ) : null}
+          </div>
+          <p className="ayuda">
+            {ubicacion
+              ? "Tu punto exacto se mostrará a todos en el mapa y en tu ficha, también a quien no tiene cuenta."
+              : "Si no la usas, apareces en el centro de tu comuna. Si la usas, tu punto exacto será público."}
           </p>
-        ) : null}
-        {estado === "error" ? (
-          <Aviso tono="alerta">
-            No pudimos acceder a tu ubicación. Revisa el permiso del navegador o usa el centro de
-            tu comuna.
-          </Aviso>
-        ) : null}
-      </div>
+          {estado === "error" ? (
+            <Aviso tono="alerta">
+              No pudimos acceder a tu ubicación. Revisa el permiso del navegador o usa el centro de
+              tu comuna.
+            </Aviso>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -268,10 +257,11 @@ export function SeccionOferta({
       <div>
         <p className="etiqueta">Tus actividades</p>
         <p className="ayuda mb-3 mt-0">
-          Elige una o varias actividades: así apareces en las búsquedas correctas. Lo que marques
-          aquí no limita lo que puedes buscar.
+          Elige una o varias: así apareces en las búsquedas correctas.
+          {roles.includes("prestador") ? " El oficio es opcional." : ""} Lo que marques aquí no
+          limita lo que puedes buscar.
         </p>
-        <SelectorEspecialidades
+        <SelectorActividades
           rubros={rubros}
           inicial={inicial?.categorias}
           otrasIniciales={inicial?.otrasActividades}
@@ -308,10 +298,49 @@ export function SeccionOferta({
           name="descripcion"
           className="campo min-h-[5rem]"
           defaultValue={inicial?.descripcion ?? ""}
-          placeholder="Qué haces, hace cuánto y qué te distingue."
+          placeholder={
+            roles.includes("prestador")
+              ? "Qué haces, hace cuánto y qué te distingue."
+              : "Qué vendes, desde cuándo y qué te distingue."
+          }
         />
       </div>
     </div>
+  );
+}
+
+/* ── Intereses ────────────────────────────────────────────────────────── */
+
+/** Preferencias para el feed (S19). No son oferta ni limitan búsquedas. */
+export function SeccionIntereses({
+  rubros,
+  inicial = [],
+}: {
+  rubros: RubroOpcion[];
+  inicial?: number[];
+}) {
+  return (
+    <fieldset>
+      <legend className="sr-only">Rubros que te interesan</legend>
+      <div className="flex flex-wrap gap-2">
+        {rubros.map((r) => (
+          <label
+            key={r.id}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-borde bg-superficie px-3 py-1.5 text-xs text-texto transition hover:bg-superficie2 has-[:checked]:border-marca has-[:checked]:bg-marca/10 has-[:checked]:text-marca"
+          >
+            <input
+              type="checkbox"
+              name="intereses"
+              value={r.id}
+              defaultChecked={inicial.includes(r.id)}
+              className="sr-only"
+            />
+            <span aria-hidden>{r.icono}</span>
+            {r.nombre}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -319,27 +348,33 @@ export function SeccionOferta({
 
 /**
  * El prefijo del país va fijo al lado y no se edita (S07): solo se escribe el
- * número. Si la persona igual escribe «+56», el caso de uso no lo duplica.
+ * número. El campo no reformatea mientras se escribe, para no mover el cursor;
+ * si alguien pega «+56 9…», el caso de uso no lo duplica.
  */
 export function CampoTelefono({
   inicial,
   prefijo = "+56",
   requerido = false,
+  etiqueta = "Teléfono",
   id = "telefono",
 }: {
   inicial?: string | null;
   prefijo?: string;
   requerido?: boolean;
+  etiqueta?: string;
   id?: string;
 }) {
   const { numero } = separarTelefono(inicial, prefijo);
   return (
     <div>
       <label className="etiqueta" htmlFor={id}>
-        Teléfono
+        {etiqueta}
       </label>
       <div className="flex">
-        <span className="inline-flex items-center rounded-l-xl border border-r-0 border-borde bg-superficie2 px-3 text-sm text-tenue">
+        <span
+          aria-hidden
+          className="inline-flex select-none items-center rounded-l-xl border border-r-0 border-borde bg-superficie2 px-3 text-sm text-tenue"
+        >
           {prefijo}
         </span>
         <input
@@ -349,31 +384,47 @@ export function CampoTelefono({
           inputMode="tel"
           autoComplete="tel-national"
           className="campo rounded-l-none"
-          defaultValue={numero}
+          defaultValue={numero.replace(/^(9)(\d{4})(\d{4})$/, "$1 $2 $3")}
           required={requerido}
           placeholder="9 1234 5678"
+          aria-describedby={`${id}-ayuda`}
         />
       </div>
-      <p className="ayuda">Escribe solo el número, sin {prefijo}. Ejemplo: 9 1234 5678.</p>
+      <p className="ayuda" id={`${id}-ayuda`}>
+        9 dígitos, sin {prefijo}. Ejemplo: 9 1234 5678.
+      </p>
     </div>
   );
 }
 
 /* ── Contacto y datos comerciales ─────────────────────────────────────── */
 
+/** Un particular que solo busca no ve campos empresariales (P05, S16). */
 export function SeccionContacto({
   inicial,
   prefijo,
+  ofrece,
 }: {
   inicial?: InicialFicha;
   prefijo?: string;
+  ofrece: boolean;
 }) {
+  if (!ofrece) {
+    return (
+      <>
+        <CampoTelefono inicial={inicial?.telefono} prefijo={prefijo} etiqueta="Teléfono (opcional)" />
+        <input type="hidden" name="correoPublico" value={inicial?.correoPublico ?? ""} />
+        <input type="hidden" name="direccion" value={inicial?.direccion ?? ""} />
+        <input type="hidden" name="sitioWeb" value={inicial?.sitioWeb ?? ""} />
+      </>
+    );
+  }
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <CampoTelefono inicial={inicial?.telefono} prefijo={prefijo} />
+      <CampoTelefono inicial={inicial?.telefono} prefijo={prefijo} requerido />
       <div>
         <label className="etiqueta" htmlFor="correoPublico">
-          Correo de contacto público
+          Correo de contacto (opcional)
         </label>
         <input
           id="correoPublico"
@@ -384,20 +435,8 @@ export function SeccionContacto({
         />
       </div>
       <div>
-        <label className="etiqueta" htmlFor="direccion">
-          Dirección (si atiendes en un local)
-        </label>
-        <input
-          id="direccion"
-          name="direccion"
-          className="campo"
-          defaultValue={inicial?.direccion ?? ""}
-          placeholder="Av. Principal 1234"
-        />
-      </div>
-      <div>
         <label className="etiqueta" htmlFor="sitioWeb">
-          Sitio web o red social
+          Sitio web o red social (opcional)
         </label>
         <input
           id="sitioWeb"
@@ -407,18 +446,26 @@ export function SeccionContacto({
           placeholder="https://"
         />
       </div>
-      <div className="sm:col-span-2">
-        <label className="etiqueta" htmlFor="rut">
-          RUT (opcional)
+      <div>
+        <label className="etiqueta" htmlFor="direccion">
+          Dirección de atención (opcional)
         </label>
         <input
-          id="rut"
-          name="rut"
-          className="campo sm:max-w-xs"
-          defaultValue={inicial?.rut ?? ""}
-          placeholder="76.543.210-K"
+          id="direccion"
+          name="direccion"
+          className="campo"
+          defaultValue={inicial?.direccion ?? ""}
+          placeholder="Av. Principal 1234"
         />
-        <p className="ayuda">Solo se usa si pides verificar tu identidad o tu empresa.</p>
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <p className="ayuda mt-0">
+          Tu teléfono, correo y sitio web solo los ven personas con cuenta.
+        </p>
+        <Aviso tono="alerta">
+          <strong>La dirección es pública:</strong> la verá cualquiera, también sin cuenta. Es
+          opcional; si trabajas desde tu casa, puedes dejarla vacía.
+        </Aviso>
       </div>
     </div>
   );

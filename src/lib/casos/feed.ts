@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -13,9 +13,51 @@ import {
   seguimientos,
 } from "@/db/schema";
 
+import { textoPara } from "@/lib/privacidad";
+
+import { categoriasDeInteres } from "./categorias";
 import { registrarEvento } from "./eventos";
-import { datosParaRequisitos } from "./perfil";
+import { activarOferta, datosParaRequisitos } from "./perfil";
 import { exigirRequisitos } from "./requisitos";
+
+/**
+ * Lo que sale de una publicación hacia una pantalla. Se proyecta a mano: estas
+ * filas viajan como props a componentes de cliente y quedan en el HTML.
+ */
+export type PublicacionPublica = {
+  id: number;
+  tipo: (typeof publicaciones.tipo.enumValues)[number];
+  titulo: string;
+  cuerpo: string | null;
+  categoriaId: number | null;
+  comunaId: number | null;
+  precio: string | null;
+  moneda: string;
+  imagenUrl: string | null;
+  necesidadId: number | null;
+  estado: (typeof publicaciones.estado.enumValues)[number];
+  creadoEn: Date;
+};
+
+export function aPublicacionPublica(
+  fila: typeof publicaciones.$inferSelect,
+  conSesion: boolean,
+): PublicacionPublica {
+  return {
+    id: fila.id,
+    tipo: fila.tipo,
+    titulo: textoPara(fila.titulo, conSesion),
+    cuerpo: textoPara(fila.cuerpo, conSesion),
+    categoriaId: fila.categoriaId,
+    comunaId: fila.comunaId,
+    precio: fila.precio,
+    moneda: fila.moneda,
+    imagenUrl: fila.imagenUrl,
+    necesidadId: fila.necesidadId,
+    estado: fila.estado,
+    creadoEn: fila.creadoEn,
+  };
+}
 
 export type FiltrosFeed = {
   perfilId?: number | null;
@@ -44,13 +86,17 @@ export async function feedPara(filtros: FiltrosFeed) {
     condiciones.push(eq(publicaciones.comunaId, filtros.comunaId));
   }
 
-  const interesesRaw = filtros.perfilId
+  const ofertaRaw = filtros.perfilId
     ? await db
         .select({ categoriaId: perfilCategorias.categoriaId })
         .from(perfilCategorias)
         .where(eq(perfilCategorias.perfilId, filtros.perfilId))
     : [];
-  const intereses = interesesRaw.map((i) => i.categoriaId);
+  const oferta = ofertaRaw.map((i) => i.categoriaId);
+  // Lo que le interesa no es lo mismo que lo que ofrece (S19).
+  const intereses = filtros.perfilId
+    ? await categoriasDeInteres(filtros.perfilId)
+    : new Set<number>();
 
   const seguidosRaw = filtros.perfilId
     ? await db
@@ -100,6 +146,7 @@ export async function feedPara(filtros: FiltrosFeed) {
     .limit(120);
 
   const ahora = Date.now();
+  const conSesion = Boolean(filtros.perfilId);
 
   const puntuadas = filas.map((fila) => {
     const razones: string[] = [];
@@ -113,8 +160,11 @@ export async function feedPara(filtros: FiltrosFeed) {
       puntaje += 0.25;
       razones.push("en tu comuna");
     }
-    if (fila.publicacion.categoriaId && intereses.includes(fila.publicacion.categoriaId)) {
+    if (fila.publicacion.categoriaId && intereses.has(fila.publicacion.categoriaId)) {
       puntaje += 0.2;
+      razones.push("te interesa");
+    } else if (fila.publicacion.categoriaId && oferta.includes(fila.publicacion.categoriaId)) {
+      puntaje += intereses.size ? 0.05 : 0.2;
       razones.push("de tu rubro");
     }
     if (seguidos.includes(fila.publicacion.autorPerfilId)) {
@@ -136,6 +186,8 @@ export async function feedPara(filtros: FiltrosFeed) {
 
     return {
       ...fila,
+      publicacion: aPublicacionPublica(fila.publicacion, conSesion),
+      autorNombre: textoPara(fila.autorNombre, conSesion),
       patrocinado: Boolean(patrocinioVigente),
       motivo: razones.join(" · ") || "reciente en tu territorio",
       puntaje,
@@ -180,6 +232,7 @@ export async function crearPublicacion(entrada: {
   if (entrada.tipo !== "novedad" && entrada.tipo !== "necesidad") {
     const datos = await datosParaRequisitos(entrada.autorPerfilId);
     exigirRequisitos("publicar_oferta", { ...datos, comunaId: entrada.comunaId ?? datos.comunaId });
+    await activarOferta(entrada.autorPerfilId);
   }
 
   const [fila] = await db
@@ -255,9 +308,12 @@ export async function alternarSeguimiento(seguidoPerfilId: number, seguidorPerfi
   return true;
 }
 
-/** Publicaciones de un perfil, para su ficha pública. */
-export async function publicacionesDe(perfilId: number, limite = 10) {
-  return db
+/** Publicaciones de un perfil. La ficha pública solo muestra las vigentes. */
+export async function publicacionesDe(
+  perfilId: number,
+  opciones: { limite?: number; conSesion: boolean; incluirPausadas?: boolean },
+) {
+  const filas = await db
     .select({
       publicacion: publicaciones,
       categoriaNombre: categorias.nombre,
@@ -269,14 +325,61 @@ export async function publicacionesDe(perfilId: number, limite = 10) {
     .where(
       and(
         eq(publicaciones.autorPerfilId, perfilId),
-        or(eq(publicaciones.estado, "publicada"), eq(publicaciones.estado, "pausada"))!,
+        opciones.incluirPausadas
+          ? or(eq(publicaciones.estado, "publicada"), eq(publicaciones.estado, "pausada"))!
+          : eq(publicaciones.estado, "publicada"),
       ),
     )
     .orderBy(desc(publicaciones.creadoEn))
-    .limit(limite);
+    .limit(opciones.limite ?? 10);
+
+  return filas.map((f) => ({
+    ...f,
+    publicacion: aPublicacionPublica(f.publicacion, opciones.conSesion),
+  }));
 }
 
-export async function categoriasPara(ids: number[]) {
-  if (!ids.length) return [];
-  return db.select().from(categorias).where(inArray(categorias.id, ids));
+/** Detalle de una publicación: público, y con enlace propio para volver a ella. */
+export async function publicacionPublica(id: number, perfilId: number | null) {
+  const [fila] = await db
+    .select({
+      publicacion: publicaciones,
+      autorNombre: perfiles.nombre,
+      autorSlug: perfiles.slug,
+      autorAvatar: perfiles.avatarUrl,
+      comunaNombre: comunas.nombre,
+      categoriaNombre: categorias.nombre,
+      reacciones: sql<number>`(
+        select count(*)::int from ${reacciones}
+        where ${reacciones.publicacionId} = ${publicaciones.id}
+      )`.as("reacciones"),
+      reaccionada: perfilId
+        ? sql<boolean>`exists (
+            select 1 from ${reacciones}
+            where ${reacciones.publicacionId} = ${publicaciones.id}
+              and ${reacciones.perfilId} = ${perfilId}
+          )`.as("reaccionada")
+        : sql<boolean>`false`.as("reaccionada"),
+      guardada: perfilId
+        ? sql<boolean>`exists (
+            select 1 from ${guardados}
+            where ${guardados.publicacionId} = ${publicaciones.id}
+              and ${guardados.perfilId} = ${perfilId}
+          )`.as("guardada")
+        : sql<boolean>`false`.as("guardada"),
+    })
+    .from(publicaciones)
+    .innerJoin(perfiles, eq(perfiles.id, publicaciones.autorPerfilId))
+    .leftJoin(comunas, eq(comunas.id, publicaciones.comunaId))
+    .leftJoin(categorias, eq(categorias.id, publicaciones.categoriaId))
+    .where(and(eq(publicaciones.id, id), eq(publicaciones.estado, "publicada")))
+    .limit(1);
+  if (!fila) return null;
+
+  const conSesion = perfilId !== null;
+  return {
+    ...fila,
+    autorNombre: textoPara(fila.autorNombre, conSesion),
+    publicacion: aPublicacionPublica(fila.publicacion, conSesion),
+  };
 }

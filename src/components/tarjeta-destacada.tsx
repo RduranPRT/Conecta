@@ -1,28 +1,20 @@
-"use client";
-
 import Link from "next/link";
-import { useTransition } from "react";
-import { Bookmark, MapPin, Megaphone, Package, UserRound, Wrench } from "lucide-react";
+import { MapPin, Megaphone, Package, UserRound, Wrench } from "lucide-react";
 
-import { accionAlternarGuardado } from "@/app/acciones";
+import { BotonGuardar } from "@/components/botones-publicacion";
+import { EtiquetaSentido } from "@/components/etiqueta-sentido";
 import { Insignia } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import type { PublicacionPublica } from "@/lib/casos/feed";
+import { ETIQUETA_TIPO } from "@/lib/publicaciones";
 
 type Props = {
-  publicacion: {
-    id: number;
-    tipo: string;
-    titulo: string;
-    imagenUrl: string | null;
-    necesidadId: number | null;
-  };
+  publicacion: PublicacionPublica;
   autorNombre: string;
-  autorSlug: string;
   comunaNombre: string | null;
   categoriaNombre: string | null;
   guardada: boolean;
   patrocinado: boolean;
-  hayPerfil: boolean;
+  haySesion: boolean;
 };
 
 const ICONO_TIPO: Record<string, typeof Package> = {
@@ -32,34 +24,28 @@ const ICONO_TIPO: Record<string, typeof Package> = {
   oportunidad: Megaphone,
 };
 
-const ETIQUETA_TIPO: Record<string, string> = {
-  producto: "Producto",
-  servicio: "Servicio",
-  oferta: "Oferta",
-  oportunidad: "Oportunidad",
-  necesidad: "Necesidad",
-  novedad: "Novedad",
-};
-
 /**
  * Versión compacta de una publicación para «Publicaciones destacadas» en
- * Inicio (UX simplificada de Álvaro, sep-2026): imagen, tipo, título, lugar y
- * autor, con guardado directo. El detalle y las acciones completas siguen en
- * Descubrir y en la ficha del autor.
+ * Inicio (UX simplificada de Álvaro, sep-2026): imagen, sentido, título, lugar
+ * y autor, con guardado directo.
  */
 export function TarjetaDestacada(props: Props) {
-  const [pendiente, iniciar] = useTransition();
   const { publicacion: p } = props;
   const Icono = ICONO_TIPO[p.tipo] ?? UserRound;
   const destino =
-    p.tipo === "necesidad" && p.necesidadId ? `/necesidades/${p.necesidadId}` : `/p/${props.autorSlug}`;
+    p.tipo === "necesidad" && p.necesidadId
+      ? `/necesidades/${p.necesidadId}`
+      : `/publicaciones/${p.id}`;
 
   return (
-    <article className="tarjeta relative flex items-center gap-3 p-3 transition hover:shadow-flotante">
+    <article
+      id={`pub-${p.id}`}
+      className="tarjeta relative flex scroll-mt-32 items-center gap-3 p-3 transition hover:shadow-flotante"
+    >
       <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-marca/10 text-marca">
         {p.imagenUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.imagenUrl} alt="" className="h-full w-full object-cover" />
+          <img src={p.imagenUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
         ) : (
           <Icono size={26} strokeWidth={1.6} />
         )}
@@ -67,6 +53,7 @@ export function TarjetaDestacada(props: Props) {
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
+          <EtiquetaSentido tipo={p.tipo} />
           <Insignia tono="marca">{ETIQUETA_TIPO[p.tipo] ?? p.tipo}</Insignia>
           {props.patrocinado ? <Insignia tono="alerta">Patrocinado</Insignia> : null}
         </div>
@@ -82,19 +69,9 @@ export function TarjetaDestacada(props: Props) {
         <p className="truncate text-xs text-tenue">{props.autorNombre}</p>
       </div>
 
-      <button
-        type="button"
-        disabled={!props.hayPerfil || pendiente}
-        onClick={() => iniciar(() => void accionAlternarGuardado(p.id))}
-        className={cn(
-          "relative z-10 self-start rounded-lg p-1.5 transition",
-          props.guardada ? "text-marca" : "text-tenue hover:bg-superficie2",
-          !props.hayPerfil && "cursor-not-allowed opacity-50",
-        )}
-        aria-label={props.guardada ? "Quitar de guardados" : "Guardar"}
-      >
-        <Bookmark size={16} fill={props.guardada ? "currentColor" : "none"} />
-      </button>
+      <div className="relative z-10 self-start">
+        <BotonGuardar publicacionId={p.id} guardada={props.guardada} haySesion={props.haySesion} />
+      </div>
     </article>
   );
 }

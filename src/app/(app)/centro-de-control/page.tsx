@@ -8,7 +8,7 @@ import { eventos, perfiles, verificaciones } from "@/db/schema";
 import { fechaHora } from "@/lib/formato";
 import { obtenerSesion, requerirPerfil } from "@/lib/sesion";
 
-import { arbolDeRubros, solicitudesPendientes } from "@/lib/casos/categorias";
+import { opcionesCategoria, solicitudesPendientes } from "@/lib/casos/categorias";
 
 import { BotonVerificacion, FormularioSolicitudCategoria } from "./acciones-cliente";
 
@@ -40,7 +40,7 @@ export default async function PaginaCentroDeControl() {
     );
   }
 
-  const [solicitudes, rubros] = await Promise.all([solicitudesPendientes(), arbolDeRubros()]);
+  const [solicitudes, opciones] = await Promise.all([solicitudesPendientes(), opcionesCategoria()]);
 
   const [metricas, pendientes, ultimosEventos, ultimosPerfiles] = await Promise.all([
     db.execute<{
@@ -114,21 +114,25 @@ export default async function PaginaCentroDeControl() {
       <section>
         <h2 className="titulo-seccion mb-1">Actividades que faltan en la lista</h2>
         <p className="mb-3 text-xs text-tenue">
-          Lo que la gente escribió en «No encuentro mi actividad». Asígnalo a una especialidad (el
-          perfil aparece en esas búsquedas) o descártalo. Si se repite, es candidato a categoría
-          nueva en scripts/datos.ts.
+          Lo que la gente escribió en «Otro». Créalo como ítem nuevo, únelo a uno que ya existe o
+          recházalo. Al aprobar o unir, quedan reasignados todos los perfiles que escribieron lo
+          mismo.
         </p>
         {solicitudes.length ? (
           <Tarjeta className="divide-y divide-borde">
             {solicitudes.map(({ solicitud, perfilNombre, perfilSlug }) => (
-              <div key={solicitud.id} className="space-y-2 px-4 py-3">
+              <div key={solicitud.id} className="space-y-2 px-4 py-3" data-testid="solicitud-otro">
                 <p className="text-sm text-texto">
                   «{solicitud.texto}» ·{" "}
                   <Link href={`/p/${perfilSlug}`} className="text-marca hover:underline">
                     {perfilNombre}
                   </Link>
                 </p>
-                <FormularioSolicitudCategoria solicitudId={solicitud.id} rubros={rubros} />
+                <FormularioSolicitudCategoria
+                  solicitudId={solicitud.id}
+                  texto={solicitud.texto}
+                  opciones={opciones}
+                />
               </div>
             ))}
           </Tarjeta>

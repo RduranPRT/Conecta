@@ -13,6 +13,8 @@ export function puntuar(entrada: {
   /** La consulta identificó una categoría concreta. */
   pideCategoria?: boolean;
   categoriaCoincide: boolean;
+  /** Ofrece algo que la incluye: el subgrupo completo o el oficio. */
+  categoriaAmplia?: boolean;
   terminoCoincide: boolean;
   disponibleAhora: boolean;
   pideHoy: boolean;
@@ -37,6 +39,9 @@ export function puntuar(entrada: {
   if (entrada.categoriaCoincide) {
     relevancia = 1;
     razones.push("categoría exacta");
+  } else if (entrada.categoriaAmplia) {
+    relevancia = 0.85;
+    razones.push("ofrece este tipo de cosas");
   } else if (entrada.terminoCoincide) {
     relevancia = entrada.pideCategoria ? 0.35 : 0.7;
     razones.push("coincide con lo buscado");

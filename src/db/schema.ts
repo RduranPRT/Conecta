@@ -31,6 +31,7 @@ export const rolActorEnum = pgEnum("rol_actor", [
   "negocio",
   "proveedor",
   "productor",
+  "partner",
 ]);
 
 export const tipoCategoriaEnum = pgEnum("tipo_categoria", ["servicio", "producto", "ambos"]);
@@ -40,9 +41,25 @@ export const tipoIdentidadEnum = pgEnum("tipo_identidad", ["persona", "empresa"]
 
 export const estadoSolicitudCategoriaEnum = pgEnum("estado_solicitud_categoria", [
   "pendiente",
+  // Estados de la primera versión; `db:catalogos` los pasa a los nuevos.
   "asignada",
   "descartada",
+  /** Se creó un ítem nuevo con ese texto. */
+  "aprobada",
+  /** Era algo que ya existía: se usó ese. */
+  "fusionada",
+  "rechazada",
 ]);
+
+/** Rubro → subgrupo → ítem; el oficio es otra vía de entrada al subgrupo. */
+export const nivelCategoriaEnum = pgEnum("nivel_categoria", [
+  "rubro",
+  "subgrupo",
+  "item",
+  "oficio",
+]);
+
+export const origenCategoriaEnum = pgEnum("origen_categoria", ["semilla", "admin"]);
 
 export const tipoPublicacionEnum = pgEnum("tipo_publicacion", [
   "producto",
@@ -163,11 +180,13 @@ export const comunas = pgTable(
 /* ────────────────────────────────────────────────────────────────────────────
  * Taxonomía de categorías (jerárquica y común a servicios y productos)
  *
- * Dos niveles: un rubro (sin padre) agrupa especialidades (con padre). La
- * especialidad es lo que un perfil ofrece y lo que se busca; el oficio es la
- * forma en que la gente nombra a quien la ejerce («gásfiter» → Gasfitería).
- * Una especialidad tiene una sola identidad, aunque se descubra desde varios
- * rubros (ver `categoriaRubros`).
+ * Tres niveles: rubro → subgrupo → ítem (el servicio o producto concreto). El
+ * oficio es la forma en que la gente nombra a quien hace el trabajo
+ * («gásfiter») y cuelga de un subgrupo. Todo vive en la misma tabla para que un
+ * perfil, una necesidad o un catálogo apunten a cualquier nivel con un solo id.
+ * Un elemento tiene una sola identidad aunque cuelgue de varios lugares (ver
+ * `categoriaPadres`). No confundir el ítem de la taxonomía («Marraqueta») con
+ * `items`, el catálogo de un perfil («Marraqueta a $2.800»).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export const categorias = pgTable(
@@ -177,10 +196,13 @@ export const categorias = pgTable(
     slug: text("slug").notNull().unique(),
     nombre: text("nombre").notNull(),
     tipo: tipoCategoriaEnum("tipo").notNull().default("ambos"),
-    /** NULL = rubro. Con valor = especialidad dentro de ese rubro principal. */
+    nivel: nivelCategoriaEnum("nivel").notNull().default("subgrupo"),
+    /** `admin` = nació de una solicitud «Otro»; el cargador no la toca. */
+    origen: origenCategoriaEnum("origen").notNull().default("semilla"),
+    /** Padre principal. NULL solo en los rubros. */
     padreId: integer("padre_id"),
     icono: text("icono"),
-    /** Nombre de quien ejerce la especialidad, cuando existe («Electricista»). */
+    /** Obsoleto: el oficio ahora es una fila de nivel «oficio». Se retira al contraer. */
     oficio: text("oficio"),
     /** Ejemplos cotidianos para reconocer la categoría sin conocer su nombre. */
     ejemplos: text("ejemplos"),
@@ -188,12 +210,32 @@ export const categorias = pgTable(
     sinonimos: jsonb("sinonimos").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     orden: integer("orden").notNull().default(0),
   },
-  (t) => [index("categorias_padre_idx").on(t.padreId)],
+  (t) => [index("categorias_padre_idx").on(t.padreId), index("categorias_nivel_idx").on(t.nivel)],
 );
 
 /**
- * Rubros secundarios de una especialidad: Climatización vive en Hogar y
- * también se descubre desde Soporte técnico, sin duplicar la categoría.
+ * De dónde cuelga cada elemento (N:M). Climatización vive en Hogar y también se
+ * descubre desde Soporte técnico; es la misma fila. Incluye al padre principal.
+ */
+export const categoriaPadres = pgTable(
+  "categoria_padres",
+  {
+    categoriaId: integer("categoria_id")
+      .notNull()
+      .references(() => categorias.id, { onDelete: "cascade" }),
+    padreId: integer("padre_id")
+      .notNull()
+      .references(() => categorias.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.categoriaId, t.padreId] }),
+    index("categoria_padres_padre_idx").on(t.padreId),
+  ],
+);
+
+/**
+ * Obsoleta: la reemplaza `categoriaPadres`. Se conserva para que la versión
+ * anterior siga funcionando durante el despliegue; se elimina al contraer.
  */
 export const categoriaRubros = pgTable(
   "categoria_rubros",
@@ -229,6 +271,11 @@ export const perfiles = pgTable(
     avatarUrl: text("avatar_url"),
     /** Identificador tributario local (RUT en Chile). El campo no asume país. */
     identificadorFiscal: text("identificador_fiscal"),
+    /**
+     * El mismo identificador, validado y normalizado («12345678-5»). Único.
+     * NULL = falta o el que había no era válido; se pide al intentar una acción.
+     */
+    identificadorFiscalNorm: text("identificador_fiscal_norm"),
     telefono: text("telefono"),
     correoPublico: text("correo_publico"),
     sitioWeb: text("sitio_web"),
@@ -259,6 +306,7 @@ export const perfiles = pgTable(
     index("perfiles_comuna_idx").on(t.comunaId),
     index("perfiles_disponible_idx").on(t.disponibleAhora),
     index("perfiles_nombre_idx").on(t.nombre),
+    uniqueIndex("perfiles_identificador_fiscal_uq").on(t.identificadorFiscalNorm),
   ],
 );
 
@@ -293,9 +341,26 @@ export const perfilCategorias = pgTable(
 );
 
 /**
+ * Lo que a alguien le interesa ver (S19). Es distinto de lo que ofrece: solo
+ * ordena su feed, no lo hace aparecer en búsquedas ni le limita nada.
+ */
+export const perfilIntereses = pgTable(
+  "perfil_intereses",
+  {
+    perfilId: integer("perfil_id")
+      .notNull()
+      .references(() => perfiles.id, { onDelete: "cascade" }),
+    categoriaId: integer("categoria_id")
+      .notNull()
+      .references(() => categorias.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.perfilId, t.categoriaId] })],
+);
+
+/**
  * «Otro»: actividad que el perfil no encontró en la taxonomía. El perfil se
- * completa igual; el Centro de Control la asigna a una categoría existente o
- * la usa como evidencia para crear una nueva. También es demanda real (S25).
+ * completa igual y el texto es buscable; el Centro de Control lo aprueba como
+ * ítem nuevo, lo une a uno existente o lo rechaza. También es demanda real (S25).
  */
 export const solicitudesCategoria = pgTable(
   "solicitudes_categoria",
@@ -374,6 +439,38 @@ export const items = pgTable(
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("items_perfil_idx").on(t.perfilId), index("items_categoria_idx").on(t.categoriaId)],
+);
+
+/**
+ * Fotos (N01, N02). Sin `itemId` es la foto del perfil. El archivo vive en el
+ * almacenamiento; aquí quedan sus claves. `perfiles.avatarUrl` e
+ * `items.imagenUrl` guardan la miniatura principal ya resuelta.
+ */
+export const imagenes = pgTable(
+  "imagenes",
+  {
+    id: serial("id").primaryKey(),
+    /** Quien administra: único que puede cambiarla. */
+    perfilId: integer("perfil_id")
+      .notNull()
+      .references(() => perfiles.id, { onDelete: "cascade" }),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "cascade" }),
+    orden: integer("orden").notNull().default(0),
+    esPrincipal: boolean("es_principal").notNull().default(false),
+    claveDetalle: text("clave_detalle").notNull(),
+    claveMiniatura: text("clave_miniatura").notNull(),
+    ancho: integer("ancho").notNull(),
+    alto: integer("alto").notNull(),
+    autorPerfilId: integer("autor_perfil_id").references(() => perfiles.id, {
+      onDelete: "set null",
+    }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("imagenes_item_idx").on(t.itemId),
+    uniqueIndex("imagenes_principal_uq").on(t.itemId).where(sql`es_principal and item_id is not null`),
+    uniqueIndex("imagenes_perfil_uq").on(t.perfilId).where(sql`item_id is null`),
+  ],
 );
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -845,6 +942,7 @@ export type Publicacion = typeof publicaciones.$inferSelect;
 export type Operacion = typeof operaciones.$inferSelect;
 export type Comuna = typeof comunas.$inferSelect;
 export type Categoria = typeof categorias.$inferSelect;
+export type Imagen = typeof imagenes.$inferSelect;
 export type SolicitudCategoria = typeof solicitudesCategoria.$inferSelect;
 export type TipoIdentidad = (typeof tipoIdentidadEnum.enumValues)[number];
 export type RolActor = (typeof rolActorEnum.enumValues)[number];

@@ -44,8 +44,7 @@ export function GeolocalizarMapa({ activo }: { activo: boolean }) {
 
   return (
     <Aviso tono="alerta">
-      No pudimos acceder a tu ubicación. Elige tu comuna abajo para ver a los proveedores más
-      cercanos.
+      No pudimos acceder a tu ubicación. Elige tu comuna en «Cambiar» para ver lo que está más cerca.
     </Aviso>
   );
 }

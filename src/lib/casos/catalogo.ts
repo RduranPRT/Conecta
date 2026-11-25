@@ -3,8 +3,10 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { categorias, items } from "@/db/schema";
 
-import { filtrarEspecialidades } from "./categorias";
+import { filtrarActividades } from "./categorias";
 import { registrarEvento } from "./eventos";
+import { activarOferta, datosParaRequisitos } from "./perfil";
+import { exigirRequisitos } from "./requisitos";
 
 /**
  * Catálogo: lo que un perfil vende o presta de forma permanente. Se distingue
@@ -20,8 +22,6 @@ export type EntradaItem = {
   precio?: number | null;
   moneda?: string;
   unidad?: string | null;
-  /** En el prototipo la foto es un enlace; la subida de archivos llega después. */
-  imagenUrl?: string | null;
 };
 
 async function validarItem(entrada: EntradaItem) {
@@ -33,11 +33,7 @@ async function validarItem(entrada: EntradaItem) {
   if (entrada.precio !== null && entrada.precio !== undefined && entrada.precio < 0) {
     throw new Error("El precio no puede ser negativo.");
   }
-  const imagenUrl = entrada.imagenUrl?.trim() || null;
-  if (imagenUrl && !/^https?:\/\/\S+$/i.test(imagenUrl)) {
-    throw new Error("La foto debe ser un enlace que empiece con http:// o https://.");
-  }
-  const [categoriaId] = entrada.categoriaId ? await filtrarEspecialidades([entrada.categoriaId]) : [];
+  const [categoriaId] = entrada.categoriaId ? await filtrarActividades([entrada.categoriaId]) : [];
 
   return {
     tipo: entrada.tipo,
@@ -47,7 +43,6 @@ async function validarItem(entrada: EntradaItem) {
     precio: entrada.precio != null ? entrada.precio.toString() : null,
     moneda: entrada.moneda ?? "CLP",
     unidad: entrada.unidad?.trim() || null,
-    imagenUrl,
   };
 }
 
@@ -60,6 +55,8 @@ async function itemPropio(itemId: number, perfilId: number) {
 }
 
 export async function crearItem(perfilId: number, entrada: EntradaItem) {
+  exigirRequisitos("publicar_catalogo", await datosParaRequisitos(perfilId));
+  await activarOferta(perfilId);
   const valores = await validarItem(entrada);
   const [item] = await db
     .insert(items)

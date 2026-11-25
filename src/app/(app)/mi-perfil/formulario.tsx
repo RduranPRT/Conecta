@@ -4,17 +4,19 @@ import { useActionState, useState } from "react";
 
 import { accionActualizarPerfil, type EstadoAccion } from "@/app/acciones";
 import {
-  ROLES_QUE_OFRECEN,
   SeccionActividades,
   SeccionContacto,
   SeccionIdentidad,
+  SeccionIntereses,
   SeccionOferta,
   SeccionUbicacion,
   type InicialFicha,
 } from "@/components/campos-ficha";
 import { SelectorCobertura, type Territorio } from "@/components/selector-comuna";
-import type { RubroOpcion } from "@/components/selector-especialidades";
+import type { RubroOpcion } from "@/components/selector-actividades";
 import { Aviso, Boton } from "@/components/ui";
+import { sinReiniciar } from "@/lib/envio";
+import { ofreceAlgo } from "@/lib/roles";
 
 function Bloque({
   titulo,
@@ -43,7 +45,11 @@ export function FormularioEdicion({
   prefijo,
   inicial,
   coberturaInicial,
+  intereses,
+  rut,
 }: {
+  intereses: number[];
+  rut: string | null;
   territorio: Territorio;
   rubros: RubroOpcion[];
   prefijo: string;
@@ -55,14 +61,14 @@ export function FormularioEdicion({
     {},
   );
   const [roles, setRoles] = useState<string[]>(inicial.roles ?? ["persona"]);
-  const ofrece = roles.some((r) => ROLES_QUE_OFRECEN.includes(r));
+  const ofrece = ofreceAlgo(roles);
 
   return (
-    <form action={enviar}>
+    <form action={enviar} onSubmit={sinReiniciar(enviar)}>
       {/* Contenedor propio: React agrega campos ocultos al inicio del formulario. */}
       <div className="space-y-6">
         <Bloque titulo="Quién eres">
-          <SeccionIdentidad inicial={inicial} />
+          <SeccionIdentidad inicial={inicial} rut={rut} />
         </Bloque>
 
         <Bloque titulo="Qué haces en Conecta">
@@ -80,8 +86,15 @@ export function FormularioEdicion({
           <input type="hidden" name="descripcion" value={inicial.descripcion ?? ""} />
         )}
 
+        <Bloque
+          titulo="Lo que te interesa"
+          bajada="Es distinto de lo que ofreces: solo ordena lo que te mostramos. Puedes buscar cualquier cosa igual."
+        >
+          <SeccionIntereses rubros={rubros} inicial={intereses} />
+        </Bloque>
+
         <Bloque titulo="Dónde estás">
-          <SeccionUbicacion territorio={territorio} inicial={inicial} />
+          <SeccionUbicacion territorio={territorio} inicial={inicial} ofrece={ofrece} />
         </Bloque>
 
         {ofrece ? (
@@ -94,10 +107,14 @@ export function FormularioEdicion({
         ) : null}
 
         <Bloque
-          titulo="Contacto y datos comerciales"
-          bajada="Todo es opcional aquí. Te lo pediremos solo cuando una acción lo necesite."
+          titulo={ofrece ? "Contacto y datos comerciales" : "Contacto"}
+          bajada={
+            ofrece
+              ? "Para que quien te contrate pueda coordinar contigo."
+              : "Es opcional. Te lo pediremos solo cuando una acción lo necesite."
+          }
         >
-          <SeccionContacto inicial={inicial} prefijo={prefijo} />
+          <SeccionContacto inicial={inicial} prefijo={prefijo} ofrece={ofrece} />
         </Bloque>
       </div>
 

@@ -9,7 +9,7 @@ import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "../src/db";
 import {
@@ -33,17 +33,35 @@ import {
 } from "../src/lib/casos/propuestas";
 
 import { crearItem } from "../src/lib/casos/catalogo";
+import { agregarFotoItem, fijarFotoPerfil } from "../src/lib/casos/imagenes";
 import { crearPerfil } from "../src/lib/casos/perfil";
+import { configAlmacenamiento } from "../src/lib/env";
+import { digitoVerificador, formatearRut } from "../src/lib/rut";
 import { normalizarTelefono } from "../src/lib/telefono";
 
 import { ACTORES, CLAVE_DEMO, PERFILES_PRUEBA } from "./actores";
 import { cargarCatalogos } from "./catalogos";
+import { FOTOS_ITEM, FOTOS_PERFIL, ilustracion } from "./seed/fotos";
 
 const paso = (texto: string) => console.log(`· ${texto}`);
 
 /** Dispersa los puntos alrededor del centro de la comuna: el mapa se ve real. */
 function jitter(base: number, escala = 0.014) {
   return base + (Math.random() - 0.5) * escala;
+}
+
+/**
+ * RUT de prueba con dígito verificador válido. Números altos y correlativos
+ * para no parecerse a los de personas reales.
+ */
+function rutDePrueba(i: number, persona: boolean) {
+  const cuerpo = (persona ? 49_000_000 : 99_000_000) + i;
+  const norm = `${cuerpo}-${digitoVerificador(cuerpo)}`;
+  return {
+    identificadorFiscal: formatearRut(norm),
+    identificadorFiscalNorm: norm,
+    tipoIdentidad: persona ? ("persona" as const) : ("empresa" as const),
+  };
 }
 
 /** Cuenta con correo y contraseña de demostración, como la crea Better Auth. */
@@ -80,6 +98,13 @@ async function main() {
 
   /* 1-3 · Territorio, taxonomía y agentes */
   const { idComuna, puntoComuna, idCategoria } = await cargarCatalogos();
+
+  // Un slug mal escrito en el seed falla aquí, no deja un perfil sin clasificar.
+  const categoria = (slug: string) => {
+    const id = idCategoria.get(slug);
+    if (!id) throw new Error(`El seed usa la categoría «${slug}», que no existe.`);
+    return id;
+  };
 
   /* 4 · Identidades con cuenta real */
   const clave = await hashPassword(CLAVE_DEMO);
@@ -118,9 +143,7 @@ async function main() {
         slug: actor.slug,
         nombre: actor.nombre,
         descripcion: actor.descripcion,
-        identificadorFiscal: `7${Math.floor(1000000 + Math.random() * 8999999)}-${Math.floor(
-          Math.random() * 9,
-        )}`,
+        ...rutDePrueba(i, actor.roles.length === 1 && actor.roles[0] === "persona"),
         // Todos con teléfono: enviar una propuesta lo exige (requisitos por acción).
         telefono: normalizarTelefono("+56", actor.telefono ?? `9 5555 ${2000 + i}`),
         correoPublico: correo,
@@ -146,7 +169,7 @@ async function main() {
         .values(
           actor.categorias.map((slug, i) => ({
             perfilId: perfil.id,
-            categoriaId: idCategoria.get(slug)!,
+            categoriaId: categoria(slug),
             principal: i === 0,
           })),
         )
@@ -188,15 +211,15 @@ async function main() {
   paso(`identidades: ${ACTORES.length} perfiles con cuenta (clave: ${CLAVE_DEMO})`);
 
   /* 4b · Perfiles de prueba de octubre, con el mismo alta que la interfaz */
-  for (const prueba of PERFILES_PRUEBA) {
+  for (const [i, prueba] of PERFILES_PRUEBA.entries()) {
     const usuarioId = await crearCuenta(prueba.slug, prueba.nombre, clave);
     const perfil = await crearPerfil({
       usuarioId,
       nombre: prueba.nombre,
-      tipoIdentidad: prueba.tipoIdentidad,
+      rut: rutDePrueba(500 + i, prueba.tipoIdentidad === "persona").identificadorFiscal,
       roles: prueba.roles,
       comunaId: idComuna.get(prueba.comuna)!,
-      categoriaIds: prueba.especialidades.map((slug) => idCategoria.get(slug)!),
+      categoriaIds: prueba.especialidades.map(categoria),
       otrasActividades: prueba.otrasActividades,
       descripcion: prueba.descripcion,
       telefono: prueba.telefono,
@@ -211,6 +234,37 @@ async function main() {
     }
   }
   paso(`perfiles de prueba: ${PERFILES_PRUEBA.length} creados con los casos de uso`);
+
+  /* 4c · Una cuenta como las anteriores a nov-2026: sin RUT. Navega igual y se
+   * le pide al intentar una acción (D6). */
+  await db.insert(perfiles).values({
+    usuarioId: await crearCuenta("cuenta-antigua", "Clara Antigua", clave),
+    slug: "cuenta-antigua",
+    nombre: "Clara Antigua",
+    comunaId: idComuna.get("Ñuñoa")!,
+  });
+  await db.insert(perfilRoles).values({
+    perfilId: (await db.query.perfiles.findFirst({ where: eq(perfiles.slug, "cuenta-antigua") }))!.id,
+    rol: "persona",
+  });
+
+  /* 4d · Fotos de ejemplo, con los mismos casos de uso que la interfaz */
+  if (configAlmacenamiento().driver === "deshabilitado") {
+    paso("fotos de ejemplo: omitidas (almacenamiento sin configurar)");
+  } else {
+    for (const [slug, dibujo] of FOTOS_PERFIL) {
+      await fijarFotoPerfil(idPerfil.get(slug)!, await ilustracion(dibujo));
+    }
+    for (const [slug, nombre, dibujos] of FOTOS_ITEM) {
+      const perfilId = idPerfil.get(slug)!;
+      const item = await db.query.items.findFirst({
+        where: and(eq(items.perfilId, perfilId), eq(items.nombre, nombre)),
+      });
+      if (!item) throw new Error(`El seed espera «${nombre}» en ${slug}.`);
+      for (const d of dibujos) await agregarFotoItem(perfilId, item.id, await ilustracion(d));
+    }
+    paso(`fotos de ejemplo: ${FOTOS_PERFIL.length} perfiles y ${FOTOS_ITEM.length} productos`);
+  }
 
   /* 5 · Dos verificaciones pendientes, para que el Centro de Control tenga cola */
   await db

@@ -5,14 +5,15 @@ import { and, eq } from "drizzle-orm";
 import { BadgeCheck, MapPin, Sparkles } from "lucide-react";
 
 import { Avatar, BotonEnlace, Encabezado, Estrellas, Insignia, Tarjeta, Vacio } from "@/components/ui";
+import { AccionConSesion } from "@/components/accion-con-sesion";
+import { EtiquetaSentido } from "@/components/etiqueta-sentido";
+import { RequiereDatos } from "@/components/requiere-datos";
 import { TarjetaActor } from "@/components/tarjeta-actor";
 import { db } from "@/db";
 import { invitaciones, operaciones, propuestas as tablaPropuestas } from "@/db/schema";
 import { trazaDeNecesidad } from "@/lib/casos/actividad";
 import { calcularMatch, obtenerNecesidad } from "@/lib/casos/necesidades";
-import { propuestasDe } from "@/lib/casos/propuestas";
-import { requisitosDe } from "@/lib/casos/requisitos";
-import { prefijoTelefonico } from "@/lib/casos/territorio";
+import { contarPropuestas, propuestasDe } from "@/lib/casos/propuestas";
 import { fechaHora, haceCuanto, monto } from "@/lib/formato";
 import { formatearDistancia } from "@/lib/geo";
 import { obtenerPerfil } from "@/lib/sesion";
@@ -50,24 +51,32 @@ const ETIQUETA_EVENTO: Record<string, string> = {
 
 export default async function PaginaNecesidad({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ accion?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { accion }] = await Promise.all([params, searchParams]);
   const necesidadId = Number(id);
   if (Number.isNaN(necesidadId)) notFound();
 
-  const fila = await obtenerNecesidad(necesidadId);
+  const perfil = await obtenerPerfil();
+  const haySesion = Boolean(perfil);
+  const fila = await obtenerNecesidad(necesidadId, haySesion);
   if (!fila) notFound();
 
   const { necesidad, solicitante, comunaNombre, categoriaNombre } = fila;
-  const perfil = await obtenerPerfil();
   const soySolicitante = perfil?.id === necesidad.solicitantePerfilId;
 
-  const [propuestas, traza, operacion] = await Promise.all([
-    propuestasDe(necesidadId),
-    trazaDeNecesidad(necesidadId),
-    db.query.operaciones.findFirst({ where: eq(operaciones.necesidadId, necesidadId) }),
+  // El visitante sabe cuántas propuestas hay, no de quién ni por cuánto: no se
+  // consultan, así que no pueden llegar al HTML.
+  const [propuestas, traza, operacion, totalPropuestas] = await Promise.all([
+    haySesion ? propuestasDe(necesidadId) : [],
+    haySesion ? trazaDeNecesidad(necesidadId) : [],
+    haySesion
+      ? db.query.operaciones.findFirst({ where: eq(operaciones.necesidadId, necesidadId) })
+      : undefined,
+    contarPropuestas(necesidadId),
   ]);
 
   const miPropuesta = perfil
@@ -102,11 +111,6 @@ export default async function PaginaNecesidad({
 
   const abierta = necesidad.estado === "publicada" || necesidad.estado === "en_cotizacion";
   const puedeCotizar = Boolean(perfil) && !soySolicitante && abierta;
-  const motivoTelefono = requisitosDe("enviar_propuesta").find((r) => r.campo === "telefono")!.motivo;
-  const pedirTelefono =
-    puedeCotizar && perfil && !perfil.telefono
-      ? { prefijo: await prefijoTelefonico(perfil.comunaId), motivo: motivoTelefono }
-      : null;
 
   const mejor = propuestas.length
     ? propuestas.reduce((a, b) => (Number(a.propuesta.monto) <= Number(b.propuesta.monto) ? a : b))
@@ -118,6 +122,7 @@ export default async function PaginaNecesidad({
         titulo={necesidad.titulo}
         bajada={
           <span className="flex flex-wrap items-center gap-2">
+            <EtiquetaSentido tipo="necesidad" />
             <Insignia tono={ESTADO_TONO[necesidad.estado] ?? "neutro"}>
               {necesidad.estado.replace("_", " ")}
             </Insignia>
@@ -175,7 +180,7 @@ export default async function PaginaNecesidad({
       </Tarjeta>
 
       {puedeCotizar ? (
-        <section>
+        <section id="propuesta" className="scroll-mt-32">
           <h2 className="titulo-seccion mb-3">
             {miPropuesta ? "Tu propuesta" : "Enviar una propuesta"}
           </h2>
@@ -190,11 +195,17 @@ export default async function PaginaNecesidad({
                 : "Te invitaron directamente a cotizar"}
             </p>
           ) : null}
+          <RequiereDatos
+            accion="enviar_propuesta"
+            perfilId={perfil!.id}
+            next={`/necesidades/${necesidadId}?accion=proponer#propuesta`}
+            titulo="Antes de cotizar"
+          >
           <Tarjeta className="p-5">
             <FormularioPropuesta
+              enfocar={accion === "proponer"}
               necesidadId={necesidadId}
               moneda={necesidad.moneda}
-              pedirTelefono={pedirTelefono}
               propuestaPrevia={
                 miPropuesta
                   ? {
@@ -206,9 +217,32 @@ export default async function PaginaNecesidad({
               }
             />
           </Tarjeta>
+          </RequiereDatos>
         </section>
       ) : null}
 
+      {!haySesion ? (
+        <Tarjeta className="flex flex-col items-center gap-3 px-5 py-6 text-center">
+          <p className="text-sm text-tenue">
+            {totalPropuestas === 0
+              ? "Todavía nadie ha cotizado."
+              : totalPropuestas === 1
+                ? "Ya recibió 1 propuesta."
+                : `Ya recibió ${totalPropuestas} propuestas.`}{" "}
+            {abierta ? "¿Puedes resolverlo tú?" : ""}
+          </p>
+          {abierta ? (
+            <AccionConSesion
+              href={`/necesidades/${necesidadId}?accion=proponer#propuesta`}
+              haySesion={false}
+            >
+              Enviar propuesta
+            </AccionConSesion>
+          ) : null}
+        </Tarjeta>
+      ) : null}
+
+      {haySesion ? (
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="titulo-seccion">
@@ -302,6 +336,7 @@ export default async function PaginaNecesidad({
           />
         )}
       </section>
+      ) : null}
 
       {operacion ? (
         <section>
@@ -387,6 +422,7 @@ export default async function PaginaNecesidad({
         </section>
       ) : null}
 
+      {haySesion ? (
       <section>
         <h2 className="titulo-seccion mb-3">Traza</h2>
         <Tarjeta className="divide-y divide-borde">
@@ -403,6 +439,7 @@ export default async function PaginaNecesidad({
           ))}
         </Tarjeta>
       </section>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { categorias, comunas, guardados, perfiles, publicaciones, reacciones } from "@/db/schema";
 
 import { registrarEvento } from "./eventos";
+import { aPublicacionPublica } from "./feed";
 
 /**
  * Guardados: "quiero volver a esto". Pedido por Álvaro junto con el resto de
@@ -72,5 +73,5 @@ export async function guardadosDe(perfilId: number, limite = 30) {
     .orderBy(desc(guardados.creadoEn))
     .limit(limite);
 
-  return filas;
+  return filas.map((f) => ({ ...f, publicacion: aPublicacionPublica(f.publicacion, true) }));
 }

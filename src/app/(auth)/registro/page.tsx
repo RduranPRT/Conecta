@@ -1,39 +1,42 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import { destinoSeguro, INICIO, rutaIngreso } from "@/lib/destino";
+import { obtenerPerfil } from "@/lib/sesion";
 
 import { FormularioRegistro } from "./formulario";
 
 export const metadata: Metadata = { title: "Crear cuenta" };
+export const dynamic = "force-dynamic";
 
-export default function PaginaRegistro() {
+export default async function PaginaRegistro({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const retorno = destinoSeguro((await searchParams).next);
+  const perfil = await obtenerPerfil();
+  if (perfil) redirect(retorno);
+  const conAccion = retorno !== INICIO;
+
   return (
-    <div className="tarjeta p-6 sm:p-8">
-      <h1 className="text-xl font-semibold text-texto">Crea tu cuenta</h1>
-      <p className="mt-1 text-sm text-tenue">
-        Con una sola cuenta puedes buscar lo que necesitas y, si quieres, ofrecer tus servicios
-        o productos. Primero tu correo y una contraseña; después, dos o tres preguntas cortas.
+    <div className="tarjeta px-5 pt-4 sm:p-8">
+      <p className="text-xs font-medium text-marca">
+        {conAccion ? "Un solo paso" : "Paso 1 de 2"}
       </p>
-
-      <ol className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] text-tenue">
-        <li className="rounded-lg bg-marca/10 px-2 py-1.5 font-medium text-marca">1 · Cuenta</li>
-        <li className="rounded-lg bg-superficie2 px-2 py-1.5">2 · Tu perfil</li>
-        <li className="rounded-lg bg-superficie2 px-2 py-1.5">3 · ¡Listo!</li>
-      </ol>
-
-      <div className="mt-6">
-        <FormularioRegistro />
-      </div>
-
-      <p className="mt-6 text-center text-sm text-tenue">
+      <h1 className="text-lg font-semibold text-texto">Crea tu cuenta</h1>
+      <p className="mb-3 text-xs text-tenue">
+        {conAccion
+          ? "Después vuelves a lo que estabas haciendo."
+          : "Después, una pregunta opcional y listo."}{" "}
         ¿Ya tienes cuenta?{" "}
-        <Link href="/ingresar" className="font-medium text-marca hover:underline">
+        <Link href={rutaIngreso(retorno)} className="font-medium text-marca hover:underline">
           Ingresa
         </Link>
-        {" · "}
-        <Link href="/explorar" className="font-medium text-marca hover:underline">
-          Explorar sin cuenta
-        </Link>
       </p>
+
+      <FormularioRegistro next={retorno} />
     </div>
   );
 }

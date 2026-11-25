@@ -1,5 +1,9 @@
+import { Suspense } from "react";
+
+import { AvisoRut } from "@/components/aviso-rut";
 import { EncabezadoApp } from "@/components/encabezado-app";
 import { NavInferior, NavLateral } from "@/components/navegacion";
+import { RetornoAccion } from "@/components/retorno-accion";
 import { mensajesSinLeer } from "@/lib/casos/mensajes";
 import { obtenerPerfil } from "@/lib/sesion";
 
@@ -11,12 +15,18 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
     <div className="min-h-dvh">
       <EncabezadoApp />
 
-      <div className="contenedor flex gap-8 py-6 pb-24 lg:pb-10">
-        <NavLateral sinLeer={sinLeer} conPerfil={Boolean(perfil)} />
-        <main className="min-w-0 flex-1">{children}</main>
+      <div className="contenedor flex gap-8 py-4 pb-24 sm:py-6 lg:pb-10">
+        <NavLateral sinLeer={sinLeer} />
+        <main className="min-w-0 flex-1">
+          <Suspense fallback={null}>
+            <RetornoAccion />
+            {perfil && !perfil.identificadorFiscalNorm ? <AvisoRut /> : null}
+          </Suspense>
+          {children}
+        </main>
       </div>
 
-      <NavInferior sinLeer={sinLeer} conPerfil={Boolean(perfil)} />
+      <NavInferior sinLeer={sinLeer} />
     </div>
   );
 }

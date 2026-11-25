@@ -18,7 +18,9 @@ export function hayModelo() {
 }
 
 function instrucciones(contexto: ContextoInterprete) {
+  // Los oficios no van: alargan la instrucción y las reglas ya los resuelven.
   const categorias = contexto.categorias
+    .filter((c) => c.nivel !== "oficio")
     .map((c) => `${c.id}=${c.nombre}`)
     .join(", ");
   const comunas = contexto.comunas.map((c) => `${c.id}=${c.nombre}`).join(", ");

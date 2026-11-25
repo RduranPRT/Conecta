@@ -12,15 +12,18 @@ const TABLAS = [
   "invitaciones",
   "publicaciones",
   "reacciones",
+  "guardados",
   "seguimientos",
   "mensajes",
   "conversacion_participantes",
   "conversaciones",
   "necesidades",
+  "imagenes",
   "items",
   "solicitudes_categoria",
   "verificaciones",
   "coberturas",
+  "perfil_intereses",
   "perfil_categorias",
   "perfil_roles",
   "acciones_agente",
@@ -40,6 +43,8 @@ async function main() {
     process.exit(1);
   }
 
+  // Lo que administración agregó a la taxonomía también es dato.
+  await db.execute(sql`delete from categorias where origen = 'admin'`);
   await db.execute(sql.raw(`truncate ${TABLAS.join(", ")} restart identity cascade`));
   console.log("· datos borrados (el esquema queda intacto)");
   process.exit(0);

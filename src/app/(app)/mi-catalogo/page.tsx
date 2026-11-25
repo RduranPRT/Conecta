@@ -5,6 +5,7 @@ import { ChevronRight, Package, Wrench } from "lucide-react";
 import { BotonEnlace, Encabezado, Insignia, Tarjeta, Vacio } from "@/components/ui";
 import { catalogoDe } from "@/lib/casos/catalogo";
 import { publicacionesDe } from "@/lib/casos/feed";
+import { conteoFotos } from "@/lib/casos/imagenes";
 import { monto } from "@/lib/formato";
 import { requerirPerfil } from "@/lib/sesion";
 
@@ -31,8 +32,10 @@ export default async function PaginaMiCatalogo() {
   const perfil = await requerirPerfil("/mi-catalogo");
   const [catalogo, publicaciones] = await Promise.all([
     catalogoDe(perfil.id),
-    publicacionesDe(perfil.id, 50),
+    publicacionesDe(perfil.id, { limite: 50, conSesion: true, incluirPausadas: true }),
   ]);
+
+  const fotos = await conteoFotos(catalogo.map((c) => c.item.id));
 
   return (
     <div className="space-y-8">
@@ -73,6 +76,7 @@ export default async function PaginaMiCatalogo() {
                     </div>
                     <p className="mt-0.5 text-xs text-tenue">
                       {item.tipo === "servicio" ? "Servicio" : "Producto"}
+                      {fotos.get(item.id) ? "" : " · sin fotos"}
                       {categoriaNombre ? ` · ${categoriaNombre}` : ""}
                       {item.precio
                         ? ` · ${monto(item.precio, item.moneda)}${item.unidad ? ` / ${item.unidad}` : ""}`
@@ -115,7 +119,7 @@ export default async function PaginaMiCatalogo() {
             {publicaciones.map(({ publicacion, categoriaNombre, comunaNombre }) => (
               <Link
                 key={publicacion.id}
-                href={`/p/${perfil.slug}`}
+                href={`/publicaciones/${publicacion.id}`}
                 className="flex items-center gap-4 px-4 py-3.5 transition hover:bg-superficie2"
               >
                 <div className="min-w-0 flex-1">

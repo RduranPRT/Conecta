@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
+import { FotoPerfil } from "@/components/cargador-fotos";
 import { BotonEnlace, Encabezado, Insignia, Tarjeta } from "@/components/ui";
-import { arbolDeRubros } from "@/lib/casos/categorias";
-import { perfilPublico } from "@/lib/casos/perfil";
+import { arbolDeRubros, interesesDe } from "@/lib/casos/categorias";
+import { fichaPropia } from "@/lib/casos/ficha";
 import { opcionesTerritorio, prefijoTelefonico } from "@/lib/casos/territorio";
+import { formatearRut } from "@/lib/rut";
 import { requerirPerfil } from "@/lib/sesion";
 
 import { FormularioEdicion } from "./formulario";
@@ -13,11 +15,12 @@ export const dynamic = "force-dynamic";
 
 export default async function PaginaMiPerfil() {
   const sesion = await requerirPerfil("/mi-perfil");
-  const [ficha, territorio, rubros, prefijo] = await Promise.all([
-    perfilPublico(sesion.slug),
+  const [ficha, territorio, rubros, prefijo, intereses] = await Promise.all([
+    fichaPropia(sesion.id),
     opcionesTerritorio(),
     arbolDeRubros(),
     prefijoTelefonico(sesion.comunaId),
+    interesesDe(sesion.id),
   ]);
 
   if (!ficha) return null;
@@ -45,29 +48,34 @@ export default async function PaginaMiPerfil() {
         </Insignia>
       </Tarjeta>
 
+      <Tarjeta className="p-5">
+        <FotoPerfil nombre={ficha.nombre} url={ficha.avatarUrl} />
+      </Tarjeta>
+
       <Tarjeta className="p-5 sm:p-6">
         <FormularioEdicion
           territorio={territorio}
           rubros={rubros}
           prefijo={prefijo}
+          intereses={intereses}
+          rut={ficha.identificadorFiscalNorm ? formatearRut(ficha.identificadorFiscalNorm) : null}
           inicial={{
             nombre: ficha.nombre,
             tipoIdentidad: ficha.tipoIdentidad,
             descripcion: ficha.descripcion,
-            rut: ficha.identificadorFiscal,
             telefono: ficha.telefono,
             direccion: ficha.direccion,
             comunaId: ficha.comunaId,
             radioKm: ficha.radioKm,
             roles: ficha.roles,
-            categorias: ficha.categorias.map((c) => c.id),
+            categorias: ficha.categoriaIds,
             otrasActividades: ficha.otrasActividades,
             correoPublico: ficha.correoPublico,
             sitioWeb: ficha.sitioWeb,
-            lat: ficha.lat,
-            lng: ficha.lng,
+            lat: ficha.ubicacionExacta ? ficha.lat : null,
+            lng: ficha.ubicacionExacta ? ficha.lng : null,
           }}
-          coberturaInicial={ficha.cobertura.map((c) => c.id).filter((id) => id !== ficha.comunaId)}
+          coberturaInicial={ficha.coberturaIds.filter((id) => id !== ficha.comunaId)}
         />
       </Tarjeta>
     </div>

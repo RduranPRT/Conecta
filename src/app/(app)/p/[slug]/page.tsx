@@ -1,26 +1,31 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BadgeCheck, Globe, MapPin, Phone } from "lucide-react";
+import { BadgeCheck, MapPin, Package, Wrench } from "lucide-react";
 
+import { AccionConSesion, EnlaceSinSesion } from "@/components/accion-con-sesion";
+import { Mapa } from "@/components/mapa";
+import { RequiereDatos } from "@/components/requiere-datos";
 import { TarjetaPublicacion } from "@/components/tarjeta-publicacion";
-import { Avatar, BotonEnlace, Encabezado, Estrellas, Insignia, Tarjeta } from "@/components/ui";
+import {
+  Avatar,
+  BotonEnlace,
+  claseBoton,
+  Encabezado,
+  Estrellas,
+  Insignia,
+  Tarjeta,
+} from "@/components/ui";
 import { publicacionesDe } from "@/lib/casos/feed";
-import { perfilPublico } from "@/lib/casos/perfil";
+import { perfilPublico } from "@/lib/casos/ficha";
 import { fecha, monto, rolesVisibles } from "@/lib/formato";
-import { formatearTelefono } from "@/lib/telefono";
+import { contactar } from "@/lib/publicaciones";
+import { etiquetaRoles, ofreceAlgo } from "@/lib/roles";
 import { obtenerPerfil } from "@/lib/sesion";
 
-import { FormularioContacto } from "./contacto";
+import { DatosContacto, FormularioContacto } from "./contacto";
 
 export const dynamic = "force-dynamic";
-
-const ETIQUETA_ROL: Record<string, string> = {
-  persona: "Persona",
-  prestador: "Prestador de servicios",
-  negocio: "Negocio",
-  proveedor: "Proveedor",
-  productor: "Productor",
-};
 
 export async function generateMetadata({
   params,
@@ -28,18 +33,28 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const ficha = await perfilPublico(slug);
+  const ficha = await perfilPublico(slug, false);
   return { title: ficha?.nombre ?? "Perfil" };
 }
 
-export default async function PaginaPerfil({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const ficha = await perfilPublico(slug);
+export default async function PaginaPerfil({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ accion?: string }>;
+}) {
+  const [{ slug }, { accion }, yo] = await Promise.all([params, searchParams, obtenerPerfil()]);
+  const haySesion = Boolean(yo);
+  const ficha = await perfilPublico(slug, haySesion);
   if (!ficha) notFound();
 
-  const [publicaciones, yo] = await Promise.all([publicacionesDe(ficha.id, 8), obtenerPerfil()]);
-  const verificado = ficha.verificaciones.some((v) => v.estado === "verificado");
+  const publicaciones = await publicacionesDe(ficha.id, { limite: 8, conSesion: haySesion });
   const esMio = yo?.id === ficha.id;
+  const ofrece = ofreceAlgo(ficha.roles);
+  const quiereContactar = accion === "contactar";
+  // El punto exacto se muestra solo de quien ofrece algo y lo fijó (D5).
+  const conPunto = ofrece && ficha.ubicacionExacta && ficha.lat !== null && ficha.lng !== null;
 
   return (
     <div className="space-y-8">
@@ -50,7 +65,7 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold text-texto">{ficha.nombre}</h1>
-              {verificado ? (
+              {ficha.verificado ? (
                 <span title="Perfil verificado" className="text-marca">
                   <BadgeCheck size={18} />
                 </span>
@@ -60,33 +75,17 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
 
             <p className="mt-1 text-sm text-tenue">
               {ficha.tipoIdentidad === "empresa" ? "Empresa · " : ""}
-              {rolesVisibles(ficha.roles).map((r) => ETIQUETA_ROL[r] ?? r).join(" · ")}
+              {etiquetaRoles(rolesVisibles(ficha.roles))}
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-tenue">
               {ficha.comunaNombre ? (
                 <span className="inline-flex items-center gap-1">
                   <MapPin size={12} />
+                  {ofrece && ficha.direccion ? `${ficha.direccion}, ` : ""}
                   {ficha.comunaNombre}
                   {ficha.regionNombre ? `, ${ficha.regionNombre}` : ""}
                 </span>
-              ) : null}
-              {ficha.telefono ? (
-                <span className="inline-flex items-center gap-1">
-                  <Phone size={12} />
-                  {formatearTelefono(ficha.telefono)}
-                </span>
-              ) : null}
-              {ficha.sitioWeb ? (
-                <a
-                  href={ficha.sitioWeb}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 hover:text-texto"
-                >
-                  <Globe size={12} />
-                  Sitio web
-                </a>
               ) : null}
               <Estrellas valor={ficha.reputacionPromedio} conteo={ficha.reputacionConteo} />
               <span>Miembro desde {fecha(ficha.creadoEn)}</span>
@@ -96,18 +95,21 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
               <p className="mt-3 whitespace-pre-line text-sm text-texto">{ficha.descripcion}</p>
             ) : null}
 
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {ficha.categorias.map((c) => (
-                <Insignia key={c.id} tono="marca">
-                  {c.nombre}
-                </Insignia>
-              ))}
-              {ficha.otrasActividades.map((texto) => (
-                <Insignia key={texto} tono="contorno">
-                  {texto}
-                </Insignia>
-              ))}
-            </div>
+            {ficha.categorias.length || ficha.otrasActividades.length ? (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-medium text-texto">Ofrece:</span>
+                {ficha.categorias.map((c) => (
+                  <Link key={c.id} href={`/buscar?categoria=${c.id}`}>
+                    <Insignia tono="marca">{c.nombre}</Insignia>
+                  </Link>
+                ))}
+                {ficha.otrasActividades.map((texto) => (
+                  <Insignia key={texto} tono="contorno">
+                    {texto}
+                  </Insignia>
+                ))}
+              </div>
+            ) : null}
 
             {ficha.radioKm ? (
               <p className="mt-3 text-xs text-tenue">
@@ -127,9 +129,9 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
                 Editar ficha
               </BotonEnlace>
             ) : (
-              <BotonEnlace href="#contacto" tamano="sm">
+              <AccionConSesion href={contactar(ficha.slug)} haySesion={haySesion} tamano="sm">
                 Contactar
-              </BotonEnlace>
+              </AccionConSesion>
             )}
             <div className="rounded-xl border border-borde px-3 py-2 text-center">
               <p className="text-lg font-semibold text-texto">{ficha.operacionesCompletadas}</p>
@@ -139,49 +141,109 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
         </div>
       </Tarjeta>
 
+      {!esMio && haySesion ? (
+        <section id="contacto" className="scroll-mt-32">
+          <Encabezado nivel={2} titulo="Contactar" />
+          <Tarjeta className="space-y-4 p-5">
+            <DatosContacto perfilId={ficha.id} abrir={quiereContactar} />
+            <RequiereDatos
+              accion="contactar"
+              perfilId={yo!.id}
+              next={contactar(ficha.slug)}
+              titulo="Antes de escribir"
+            >
+              <FormularioContacto
+                perfilId={ficha.id}
+                nombre={ficha.nombre}
+                enfocar={quiereContactar}
+              />
+            </RequiereDatos>
+          </Tarjeta>
+        </section>
+      ) : null}
+
       {ficha.catalogo.length ? (
-        <section>
-          <Encabezado titulo="Catálogo" />
+        <section id="catalogo" className="scroll-mt-32">
+          <Encabezado nivel={2} titulo="Catálogo" />
           <div className="grid gap-3 sm:grid-cols-2">
-            {ficha.catalogo.map((item) => (
-              <Tarjeta key={item.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
+            {ficha.catalogo.map((item) => {
+              const Icono = item.tipo === "servicio" ? Wrench : Package;
+              return (
+                <article key={item.id} className="tarjeta relative flex gap-3 p-3">
                   {item.imagenUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={item.imagenUrl}
-                      alt=""
-                      className="h-14 w-14 shrink-0 rounded-lg border border-borde object-cover"
+                      alt={item.nombre}
+                      loading="lazy"
+                      className="h-20 w-20 shrink-0 rounded-xl border border-borde object-cover"
                     />
-                  ) : null}
+                  ) : (
+                    <span className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-superficie2 text-tenue">
+                      <Icono size={22} />
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] uppercase tracking-wide text-tenue">
                       {item.tipo === "servicio" ? "Servicio" : "Producto"}
                     </p>
-                    <p className="text-sm font-medium text-texto">{item.nombre}</p>
+                    <h3 className="text-sm font-medium text-texto">
+                      <Link
+                        href={`/p/${ficha.slug}/catalogo/${item.id}`}
+                        className="after:absolute after:inset-0"
+                      >
+                        {item.nombre}
+                      </Link>
+                    </h3>
                     {item.descripcion ? (
-                      <p className="mt-1 text-xs text-tenue">{item.descripcion}</p>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-tenue">{item.descripcion}</p>
+                    ) : null}
+                    {item.precio ? (
+                      <p className="mt-1 text-sm font-semibold text-texto">
+                        {monto(item.precio, item.moneda)}
+                        {item.unidad ? (
+                          <span className="text-xs font-normal text-tenue"> /{item.unidad}</span>
+                        ) : null}
+                      </p>
                     ) : null}
                   </div>
-                  {item.precio ? (
-                    <p className="shrink-0 text-sm font-semibold text-texto">
-                      {monto(item.precio, item.moneda)}
-                      {item.unidad ? (
-                        <span className="text-xs font-normal text-tenue"> /{item.unidad}</span>
-                      ) : null}
-                    </p>
-                  ) : null}
-                </div>
-              </Tarjeta>
-            ))}
+                </article>
+              );
+            })}
           </div>
+        </section>
+      ) : null}
+
+      {conPunto ? (
+        <section>
+          <Encabezado nivel={2} titulo="Dónde está" />
+          <Mapa
+            puntos={[
+              {
+                id: ficha.id,
+                nombre: ficha.nombre,
+                slug: ficha.slug,
+                lat: ficha.lat!,
+                lng: ficha.lng!,
+                rol: rolesVisibles(ficha.roles)[0] ?? "persona",
+                comuna: ficha.comunaNombre,
+                categoria: ficha.categorias[0]?.nombre ?? null,
+                disponible: ficha.disponibleAhora,
+                reputacion: ficha.reputacionPromedio,
+                distancia: null,
+              },
+            ]}
+            centro={{ lat: ficha.lat!, lng: ficha.lng! }}
+            zoom={15}
+            alto="14rem"
+          />
         </section>
       ) : null}
 
       {publicaciones.length ? (
         <section>
-          <Encabezado titulo="Publicaciones" />
-          <div className="grid gap-4">
+          <Encabezado nivel={2} titulo="Publicaciones" />
+          <div className="grid grid-cols-1 gap-4">
             {publicaciones.map(({ publicacion, categoriaNombre, comunaNombre }) => (
               <TarjetaPublicacion
                 key={publicacion.id}
@@ -196,7 +258,7 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
                 guardada={false}
                 patrocinado={false}
                 motivo=""
-                hayPerfil={Boolean(yo)}
+                haySesion={haySesion}
               />
             ))}
           </div>
@@ -204,22 +266,20 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
       ) : null}
 
       <section>
-        <Encabezado titulo="Reseñas" />
+        <Encabezado nivel={2} titulo="Reseñas" />
         {ficha.resenas.length ? (
           <Tarjeta className="divide-y divide-borde">
-            {ficha.resenas.map(({ calificacion, autorNombre }) => (
-              <div key={calificacion.id} className="px-4 py-3.5">
+            {ficha.resenas.map((r) => (
+              <div key={r.id} className="px-4 py-3.5">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-texto">{autorNombre}</p>
+                  <p className="text-sm font-medium text-texto">{r.autorNombre}</p>
                   <span className="text-xs text-alerta">
-                    {"★".repeat(calificacion.puntaje)}
-                    <span className="text-tenue">{"★".repeat(5 - calificacion.puntaje)}</span>
+                    {"★".repeat(r.puntaje)}
+                    <span className="text-tenue">{"★".repeat(5 - r.puntaje)}</span>
                   </span>
                 </div>
-                {calificacion.comentario ? (
-                  <p className="mt-1 text-sm text-tenue">{calificacion.comentario}</p>
-                ) : null}
-                <p className="mt-1 text-[11px] text-tenue">{fecha(calificacion.creadoEn)}</p>
+                {r.comentario ? <p className="mt-1 text-sm text-tenue">{r.comentario}</p> : null}
+                <p className="mt-1 text-[11px] text-tenue">{fecha(r.creadoEn)}</p>
               </div>
             ))}
           </Tarjeta>
@@ -231,20 +291,18 @@ export default async function PaginaPerfil({ params }: { params: Promise<{ slug:
         )}
       </section>
 
-      {!esMio ? (
-        <section id="contacto">
-          <Encabezado titulo="Contactar" />
-          <Tarjeta className="p-5">
-            {yo ? (
-              <FormularioContacto perfilId={ficha.id} nombre={ficha.nombre} />
-            ) : (
-              <p className="text-sm text-tenue">
-                <a href="/ingresar" className="font-medium text-marca hover:underline">
-                  Ingresa
-                </a>{" "}
-                para escribirle a {ficha.nombre}.
-              </p>
-            )}
+      {!haySesion ? (
+        <section id="contacto" className="scroll-mt-32">
+          <Tarjeta className="flex flex-col items-center gap-3 px-5 py-6 text-center">
+            <p className="text-sm text-tenue">
+              El teléfono, el correo y los mensajes están disponibles con tu cuenta.
+            </p>
+            <EnlaceSinSesion
+              next={contactar(ficha.slug)}
+              className={claseBoton({ tamano: "md" })}
+            >
+              Contactar a {ficha.nombre}
+            </EnlaceSinSesion>
           </Tarjeta>
         </section>
       ) : null}

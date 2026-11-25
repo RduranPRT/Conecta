@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 
 import { registrarEvento } from "./eventos";
-import { datosParaRequisitos } from "./perfil";
+import { activarOferta, datosParaRequisitos } from "./perfil";
 import { exigirRequisitos } from "./requisitos";
 
 /**
@@ -43,6 +43,7 @@ export async function enviarPropuesta(entrada: {
   if (entrada.monto <= 0) throw new Error("El monto debe ser mayor que cero.");
   if (entrada.plazoDias <= 0) throw new Error("El plazo debe ser de al menos un día.");
   exigirRequisitos("enviar_propuesta", await datosParaRequisitos(entrada.perfilId));
+  await activarOferta(entrada.perfilId);
 
   const propuesta = await db.transaction(async (tx) => {
     const [fila] = await tx
@@ -327,6 +328,15 @@ export async function calificar(entrada: {
     actorPerfilId: entrada.autorPerfilId,
     datos: { destinoPerfilId, puntaje: entrada.puntaje },
   });
+}
+
+/** Cuántas propuestas vigentes tiene una necesidad. Es lo único que ve el visitante. */
+export async function contarPropuestas(necesidadId: number) {
+  const [fila] = await db
+    .select({ total: count() })
+    .from(propuestas)
+    .where(and(eq(propuestas.necesidadId, necesidadId), ne(propuestas.estado, "retirada")));
+  return fila?.total ?? 0;
 }
 
 export async function recalcularReputacion(perfilId: number) {

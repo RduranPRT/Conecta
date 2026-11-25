@@ -22,6 +22,34 @@
       "when": 1792449362106,
       "tag": "0002_nostalgic_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795560782343,
+      "tag": "0003_taxonomia_niveles",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795560852444,
+      "tag": "0004_mapeo_taxonomia",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795561679845,
+      "tag": "0005_rut_unico",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795562111710,
+      "tag": "0006_imagenes",
+      "breakpoints": true
     }
   ]
 }

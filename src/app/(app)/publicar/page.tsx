@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Aviso, BotonEnlace, Encabezado, Tarjeta } from "@/components/ui";
-import { arbolDeRubros } from "@/lib/casos/categorias";
-import { datosParaRequisitos } from "@/lib/casos/perfil";
-import { faltantesPara } from "@/lib/casos/requisitos";
+import { RequiereDatos } from "@/components/requiere-datos";
+import { Encabezado, Tarjeta } from "@/components/ui";
+import { opcionesCategoria } from "@/lib/casos/categorias";
 import { opcionesTerritorio } from "@/lib/casos/territorio";
 import { requerirPerfil } from "@/lib/sesion";
 
@@ -16,21 +15,17 @@ export const dynamic = "force-dynamic";
 export default async function PaginaPublicar({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tipo?: string }>;
+  searchParams: Promise<{ q?: string; tipo?: string; para?: string }>;
 }) {
-  const { q = "", tipo = "necesidad" } = await searchParams;
-  const perfil = await requerirPerfil("/publicar");
+  const { q = "", tipo = "necesidad", para = "" } = await searchParams;
+  const consulta = new URLSearchParams({ tipo, ...(q ? { q } : {}), ...(para ? { para } : {}) });
+  const perfil = await requerirPerfil(`/publicar?${consulta}`);
 
-  const [territorio, rubros, datos] = await Promise.all([
+  const [territorio, opciones] = await Promise.all([
     opcionesTerritorio(),
-    arbolDeRubros(),
-    datosParaRequisitos(perfil.id),
+    opcionesCategoria(),
   ]);
   const esNecesidad = tipo === "necesidad";
-  // S05: si falta algo para ofrecer, se dice antes de llenar el formulario.
-  const faltanParaOfrecer = faltantesPara("publicar_oferta", datos).filter(
-    (f) => f.campo !== "comunaId",
-  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -62,33 +57,31 @@ export default async function PaginaPublicar({
         </Link>
       </nav>
 
-      {!esNecesidad && faltanParaOfrecer.length ? (
-        <Aviso tono="alerta">
-          <p className="font-medium">Antes de ofrecer algo, cuéntanos qué ofreces.</p>
-          <p className="mt-1">{faltanParaOfrecer[0].motivo} Es la misma cuenta: solo activas una opción más.</p>
-          <BotonEnlace href="/mi-perfil" tamano="sm" className="mt-3">
-            Completar en Mi perfil
-          </BotonEnlace>
-        </Aviso>
-      ) : null}
-
+      <RequiereDatos
+        accion={esNecesidad ? "publicar_necesidad" : "publicar_oferta"}
+        perfilId={perfil.id}
+        next={`/publicar?${consulta}`}
+        titulo={esNecesidad ? "Antes de publicar" : "Antes de ofrecer algo"}
+        yaLoPide={esNecesidad ? ["comunaId"] : []}
+      >
       <Tarjeta className="p-5 sm:p-6">
         {esNecesidad ? (
           <FormularioNecesidad
             territorio={territorio}
-            rubros={rubros}
+            opciones={opciones}
             comunaPorDefecto={perfil.comunaId}
             textoInicial={q}
           />
         ) : (
           <FormularioPublicacion
             territorio={territorio}
-            rubros={rubros}
+            opciones={opciones}
             comunaPorDefecto={perfil.comunaId}
             tipoInicial={tipo === "necesidad" ? "oferta" : tipo}
           />
         )}
       </Tarjeta>
+      </RequiereDatos>
 
       <p className="text-xs text-tenue">
         {esNecesidad

@@ -1,0 +1,2 @@
+ALTER TABLE "perfiles" ADD COLUMN "identificador_fiscal_norm" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "perfiles_identificador_fiscal_uq" ON "perfiles" USING btree ("identificador_fiscal_norm");

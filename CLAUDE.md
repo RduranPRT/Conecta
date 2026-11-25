@@ -58,15 +58,26 @@ npm run db:migrate       # lo aplica
 ```
 
 Territorio (16 regiones, 346 comunas con código CUT en `scripts/territorio-cl.ts`)
-y taxonomía (rubros → especialidades en `scripts/datos.ts`) los carga
-`npm run db:catalogos`. Es idempotente, no toca datos de usuarios y corre en cada
-despliegue después de las migraciones (`railway.json`). Para agregar una
-categoría, edita `scripts/datos.ts`; no la insertes a mano. Una especialidad
-tiene una sola fila aunque se descubra desde varios rubros (`tambienEn`).
+y taxonomía (rubro → subgrupo → ítem, más oficios, en
+`scripts/seed/taxonomia.ts`) los carga `npm run db:catalogos`. Es idempotente, no
+toca datos de usuarios ni lo creado desde administración (`origen = admin`) y corre
+en cada despliegue después de las migraciones. Para agregar una categoría, edita la
+semilla, corre `npm run taxonomia:exportar` y no la insertes a mano. Cada elemento
+tiene una sola fila aunque cuelgue de varios lugares (`categoria_padres`). Un ítem
+de la taxonomía no es lo mismo que `items`, el catálogo de un perfil.
 
-Lo que una acción exige del perfil (teléfono para proponer, comuna para
-publicar…) vive en `src/lib/casos/requisitos.ts`. El registro pide lo mínimo; no
-agregues campos obligatorios al alta sin pasar por ahí.
+Lo que una acción exige del perfil vive en `requisitosPara`
+(`src/lib/casos/requisitos.ts`). El registro pide lo mínimo (nombre, correo, clave y
+RUT); no agregues campos obligatorios al alta sin pasar por ahí.
+
+## Privacidad
+
+Lo que ve un visitante se proyecta en el servidor con columnas explícitas
+(`src/lib/casos/ficha.ts`, `aPublicacionPublica`). Nunca selecciones la fila completa
+de `perfiles` para una pantalla pública: teléfono, correo, web, redes y RUT solo salen
+por `contactoDe`, que exige saber quién los pide. Los textos libres pasan por
+`textoPara`. `tests/e2e/privacidad.spec.ts` revisa el cuerpo crudo de cada pantalla
+pública: si agregas una, súmala ahí.
 
 Nunca edites a mano una migración ya aplicada. `src/db/auth-schema.ts` lo fija
 Better Auth: si actualizas la librería, regenera con `npx @better-auth/cli generate`
@@ -79,7 +90,11 @@ Antes de dar algo por terminado:
 ```bash
 npm run typecheck && npm run test && npm run build
 npm run db:reset && npm run db:seed     # el seed ejercita los casos de uso reales
+npm run test:e2e                        # Playwright; exige E2E_DATABASE_URL local
 ```
+
+Las pruebas nuevas van en `tests/unit` (reglas) y `tests/e2e` (recorridos, a 390×844).
+Cada bloque de trabajo tiene su spec en `spec/`.
 
 El seed no inserta el resultado de las reglas: publica necesidades, cotiza,
 adjudica y califica llamando a los casos de uso. Si una regla se rompe, el seed

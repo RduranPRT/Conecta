@@ -29,6 +29,13 @@ const boton = cva(
   },
 );
 
+export type VarianteBoton = VariantProps<typeof boton>;
+
+/** Las clases de un botón, para enlaces que no son BotonEnlace. */
+export function claseBoton(opciones: VarianteBoton) {
+  return boton(opciones);
+}
+
 type BotonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof boton>;
 
 export function Boton({ className, variante, tamano, ...props }: BotonProps) {
@@ -107,7 +114,8 @@ export function Avatar({
         alt={nombre}
         width={tamano}
         height={tamano}
-        className={cn("rounded-full object-cover", className)}
+        loading="lazy"
+        className={cn("shrink-0 rounded-full object-cover", className)}
         style={{ width: tamano, height: tamano }}
       />
     );
@@ -153,15 +161,22 @@ export function Encabezado({
   titulo,
   bajada,
   acciones,
+  nivel = 1,
 }: {
   titulo: string;
+  /** 1 = título de la pantalla; 2 = título de una sección dentro de ella. */
+  nivel?: 1 | 2;
   bajada?: React.ReactNode;
   acciones?: React.ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold text-texto sm:text-[1.75rem]">{titulo}</h1>
+        {nivel === 1 ? (
+          <h1 className="text-2xl font-semibold text-texto sm:text-[1.75rem]">{titulo}</h1>
+        ) : (
+          <h2 className="text-xl font-semibold text-texto">{titulo}</h2>
+        )}
         {bajada ? <p className="mt-1 max-w-2xl text-sm text-tenue">{bajada}</p> : null}
       </div>
       {acciones ? <div className="flex items-center gap-2">{acciones}</div> : null}

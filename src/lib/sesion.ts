@@ -1,11 +1,13 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { comunas, perfilRoles, perfiles, regiones, type RolActor } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { destinoSeguro, rutaIngreso } from "@/lib/destino";
+import { ofreceAlgo } from "@/lib/roles";
 
 export type PerfilSesion = typeof perfiles.$inferSelect & {
   roles: RolActor[];
@@ -44,7 +46,7 @@ export const obtenerPerfil = cache(async (): Promise<PerfilSesion | null> => {
   const roles = await db
     .select({ rol: perfilRoles.rol })
     .from(perfilRoles)
-    .where(eq(perfilRoles.perfilId, fila.perfil.id));
+    .where(and(eq(perfilRoles.perfilId, fila.perfil.id), eq(perfilRoles.activo, true)));
 
   return {
     ...fila.perfil,
@@ -54,10 +56,15 @@ export const obtenerPerfil = cache(async (): Promise<PerfilSesion | null> => {
   };
 });
 
-/** Para pantallas que no existen sin identidad. */
-export async function requerirPerfil(destino = "/inicio"): Promise<PerfilSesion> {
+/** Para pantallas que no existen sin identidad. Vuelve a `destino` al ingresar. */
+export async function requerirPerfil(destino: string): Promise<PerfilSesion> {
   const perfil = await obtenerPerfil();
-  if (!perfil) redirect(`/ingresar?destino=${encodeURIComponent(destino)}`);
+  if (!perfil) {
+    // Con sesión pero sin perfil: la cuenta quedó a medio crear.
+    const sesion = await obtenerSesion();
+    if (sesion) redirect(`/onboarding?next=${encodeURIComponent(destinoSeguro(destino))}`);
+    redirect(rutaIngreso(destino));
+  }
   return perfil;
 }
 
@@ -68,5 +75,5 @@ export function tieneRol(perfil: PerfilSesion | null, ...roles: RolActor[]) {
 
 /** Un actor puede ofrecer si tiene cualquiera de los roles de oferta. */
 export function puedeOfrecer(perfil: PerfilSesion | null) {
-  return tieneRol(perfil, "prestador", "negocio", "proveedor", "productor");
+  return Boolean(perfil && ofreceAlgo(perfil.roles));
 }

@@ -12,8 +12,9 @@ import {
   UserRound,
 } from "lucide-react";
 
-import { Encabezado, Insignia, Tarjeta } from "@/components/ui";
+import { Avatar, Encabezado, Insignia, Tarjeta } from "@/components/ui";
 import { mensajesSinLeer } from "@/lib/casos/mensajes";
+import { etiquetaRoles } from "@/lib/roles";
 import { requerirPerfil } from "@/lib/sesion";
 
 export const metadata: Metadata = { title: "Mi Conecta" };
@@ -94,14 +95,12 @@ export default async function PaginaMiConecta() {
         href={`/p/${perfil.slug}`}
         className="tarjeta flex items-center gap-3 p-4 transition hover:shadow-flotante"
       >
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-marca/10 font-semibold text-marca">
-          {perfil.nombre.slice(0, 1).toUpperCase()}
-        </div>
+        <Avatar nombre={perfil.nombre} url={perfil.avatarUrl} tamano={44} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-texto">{perfil.nombre}</p>
           <p className="truncate text-xs text-tenue">
             {perfil.comunaNombre ?? "Sin comuna"}
-            {perfil.roles.length ? ` · ${perfil.roles.join(", ")}` : ""}
+            {perfil.roles.length ? ` · ${etiquetaRoles(perfil.roles)}` : ""}
           </p>
         </div>
         <ChevronRight size={16} className="shrink-0 text-tenue" />

@@ -5,13 +5,13 @@ import { useActionState } from "react";
 import { accionIngreso, type EstadoAccion } from "@/app/acciones";
 import { Aviso, Boton } from "@/components/ui";
 
-export function FormularioIngreso({ destino }: { destino: string }) {
+export function FormularioIngreso({ next }: { next: string }) {
   const [estado, enviar, pendiente] = useActionState<EstadoAccion, FormData>(accionIngreso, {});
 
   return (
     <form action={enviar} className="space-y-4">
       {estado?.error ? <Aviso tono="peligro">{estado.error}</Aviso> : null}
-      <input type="hidden" name="destino" value={destino} />
+      <input type="hidden" name="next" value={next} />
 
       <div>
         <label className="etiqueta" htmlFor="email">

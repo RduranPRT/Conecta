@@ -5,14 +5,7 @@ import { Avatar, BotonEnlace, Estrellas, Insignia } from "@/components/ui";
 import { rolesVisibles } from "@/lib/formato";
 import type { ActorResumen } from "@/lib/casos/actores";
 import { formatearDistancia } from "@/lib/geo";
-
-const ETIQUETA_ROL: Record<string, string> = {
-  persona: "Persona",
-  prestador: "Prestador de servicios",
-  negocio: "Negocio",
-  proveedor: "Proveedor",
-  productor: "Productor",
-};
+import { etiquetaRoles } from "@/lib/roles";
 
 export function TarjetaActor({
   actor,
@@ -44,7 +37,7 @@ export function TarjetaActor({
         </div>
 
         <p className="mt-0.5 text-xs text-tenue">
-          {rolesVisibles(actor.roles).map((r) => ETIQUETA_ROL[r] ?? r).join(" · ") || "Perfil"}
+          {etiquetaRoles(rolesVisibles(actor.roles)) || "Perfil"}
         </p>
 
         {actor.descripcion ? (
